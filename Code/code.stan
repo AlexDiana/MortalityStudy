@@ -13,12 +13,14 @@ data {
   int age[n];
   int product[n];
 }
+
 parameters {
   vector[A] a;
   vector[A] b_params;
   vector[Y] k_params;
   vector[P - 1] p_params;
 }
+
 transformed parameters {
   
   vector[A] b = b_params / sum(b_params);

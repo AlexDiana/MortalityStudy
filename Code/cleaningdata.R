@@ -12,8 +12,6 @@ data <- read_excel(file_path, sheet = "Individual Internal") %>%
   summarise(Exposure = sum(`Lives exposure`),
             Deaths = sum(`Incurred deaths`))
 
-
-
 qplot(data$Age, data$Deaths / data$Exposure)
 
 file_path <- here("Data","Exposure_Deaths_UK.xlsx")

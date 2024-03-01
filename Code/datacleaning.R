@@ -33,7 +33,7 @@ data_summarised <- data %>%
   # filter(Gender == "M",
          # Year < 2020,
          # Product != "Annuities" | ProductCategory == "Standard" ) %>% 
-  group_by(Product, Age, Year) %>% 
+  group_by(Age, Year, Gender) %>% 
   summarise(Exposure = sum(LivesExposure),
             Claim = sum(IncurredClaims),
             ExpClaim = sum(ExpectedClaims)) %>% 
@@ -54,5 +54,16 @@ data_summarised %>%
              ymax = Qx + 1.96 * StdQx,
              color = Product,
              group = Product)) + geom_line() + 
+  geom_errorbar() + 
+  facet_wrap(vars(Year))
+
+data_summarised %>%
+  filter(Age < 70,Age > 60) %>%
+  ggplot(aes(x = Age, 
+             y = Qx, 
+             ymin = Qx - 1.96 * StdQx, 
+             ymax = Qx + 1.96 * StdQx,
+             color = Gender,
+             group = Gender)) + geom_line() + 
   geom_errorbar() + 
   facet_wrap(vars(Year))
