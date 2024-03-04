@@ -33,7 +33,7 @@ data_summarised <- data %>%
   # filter(Gender == "M",
          # Year < 2020,
          # Product != "Annuities" | ProductCategory == "Standard" ) %>% 
-  group_by(Age, Year, Gender) %>% 
+  group_by(Age, Year, Product) %>% 
   summarise(Exposure = sum(LivesExposure),
             Claim = sum(IncurredClaims),
             ExpClaim = sum(ExpectedClaims)) %>% 
@@ -41,7 +41,31 @@ data_summarised <- data %>%
          ExpQx = ExpClaim / Exposure) %>% 
   mutate(StdQx = sqrt(Qx * (1 - Qx) / Exposure))
 
-save(data_summarised, file = "data_summarised.rda")
+ages <- unique(data_summarised$Age)
+years <- unique(data_summarised$Year)
+products <- unique(data_summarised$Product)
+X <- length(ages)
+Y <- length(years)
+P <- length(products)
+
+d <- array(NA, dim = c(X, Y, P), dimnames = list(ages, years, products))
+E <- array(NA, dim = c(X, Y, P), dimnames = list(ages, years, products))
+
+for (x in 1:X) {
+  for (t in 1:Y) {
+    for (p in 1:P) {
+      idx <- which(data_summarised$Age == ages[x] &
+                     data_summarised$Year == years[t] &
+                     data_summarised$Product == products[p])
+      if(length(idx) > 0){
+        d[x,t,p] <- data_summarised$Claim[idx]
+        E[x,t,p] <- data_summarised$Exposure[idx]  
+      }
+    }
+  }
+}
+
+save(d, E, file = "data_products.rda")
 
 library(ggplot2)
 
