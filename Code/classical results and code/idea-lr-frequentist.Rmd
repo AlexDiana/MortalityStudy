@@ -1,0 +1,567 @@
+---
+title: "IDEA-LR: Classical/Frequentist Estimation"
+author: "Jackie Wong"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this document, I will briefly illustrate the results of fitting various extensions of Lee-Carter mortality models using a **classical/frequentist** approach. This is so that we have a clearer idea of what to expect from each variation of the models being considered to help us better understand the model, mechanics, parameter interpretations, etc. Might be useful for Bayesian implementations later. 
+
+## The data
+
+```{r}
+setwd("G:/IDEA-LR/") #set working directory
+load("data_summarised.rda") #load the data
+
+head(data_summarised)
+dim(data_summarised)
+
+names(data_summarised)
+
+table(data_summarised$Product) # 4 products
+
+#stratify the data by product type
+data_summarised_ACI<-data_summarised[data_summarised$Product=="ACI",]
+data_summarised_DB<-data_summarised[data_summarised$Product=="DB",]
+data_summarised_SCI<-data_summarised[data_summarised$Product=="SCI",]
+data_summarised_Annuities<-data_summarised[data_summarised$Product=="Annuities",]
+
+table(data_summarised_ACI$Age)
+table(data_summarised_DB$Age)
+table(data_summarised_SCI$Age)
+table(data_summarised_Annuities$Age) #annuities data does not have much data by age
+
+```
+
+We see that for some ages, particularly at both ends, are quite sparse (makes sense from actuarial perspective). Moreover, for annuities, we observe more data at higher ages, again makes actuarial sense. 
+
+In order to avoid having to deal with ages with missing yearly deaths, we will extract data corresponding to ages 35-65 where we have sufficient information. We may revisit to refine the results by including the full dataset later once we have developed the general methodology. 
+
+```{r}
+#subset ages 35-65 (to avoid 0 number of claims)
+
+data_subset_ACI<-data_summarised_ACI[(34<data_summarised_ACI$Age & data_summarised_ACI$Age<=65)
+                                     ,c("Age","Year","Claim","Exposure")]
+data_subset_DB<-data_summarised_DB[(34<data_summarised_DB$Age & data_summarised_DB$Age<=65)
+                                   ,c("Age","Year","Claim","Exposure")]
+data_subset_SCI<-data_summarised_SCI[(34<data_summarised_SCI$Age & data_summarised_SCI$Age<=65)
+                                     ,c("Age","Year","Claim","Exposure")]
+data_subset_Annuities<-data_summarised_Annuities[(34<data_summarised_Annuities$Age & data_summarised_Annuities$Age<=65)
+                                                 ,c("Age","Year","Claim","Exposure")]
+
+#round off the number of claims/deaths to be consistent with the model specification due to Poisson/Binomial
+
+data_subset_ACI$Qx<-round(data_subset_ACI$Claim)/data_subset_ACI$Exposure
+data_subset_DB$Qx<-round(data_subset_DB$Claim)/data_subset_DB$Exposure
+data_subset_SCI$Qx<-round(data_subset_SCI$Claim)/data_subset_SCI$Exposure
+data_subset_Annuities$Qx<-round(data_subset_Annuities$Claim)/data_subset_Annuities$Exposure
+```
+
+For illustrative purposes, we could also aggregate the death data (over `ACI`, `DB`, `SCI`).
+
+```{r}
+##aggregated data
+
+data_subset_aggregate<-data_subset_ACI
+data_subset_aggregate[,3:4]<-cbind((data_subset_ACI[,3]+data_subset_DB[,3]+data_subset_SCI[,3])
+                                   ,(data_subset_ACI[,4]+data_subset_DB[,4]+data_subset_SCI[,4]))
+
+data_subset_aggregate$Qx<-round(data_subset_aggregate$Claim)/data_subset_aggregate$Exposure
+```
+
+```{r}
+############
+##plots by product (trends observed in the data)
+###########
+
+plot(unique(data_subset_ACI$Age),log(data_subset_ACI$Qx[data_subset_ACI$Year==2020]),xlab="Age"
+     ,ylab="",type="l",col=2,main="Observed log death rates in 2020",ylim=c(-8.5,-4))
+lines(unique(data_subset_DB$Age),log(data_subset_DB$Qx[data_subset_DB$Year==2020]),col=3)
+lines(unique(data_subset_SCI$Age),log(data_subset_SCI$Qx[data_subset_SCI$Year==2020]),col=4)
+lines(unique(data_subset_aggregate$Age),log(data_subset_aggregate$Qx[data_subset_aggregate$Year==2020]),col=1)
+lines(unique(data_subset_Annuities$Age),log(data_subset_Annuities$Qx[data_subset_Annuities$Year==2020]),col=5)
+#some issues with annuities data,death rates are unexpectedly high and contain many zeros 
+legend("topleft",c("aggregate","ACI","DB","SCI","Annuities"),lty=1,col=1:5)
+
+#I have chosen to ignore annuities from now
+```
+
+## Fitting the Lee-Carter separately for each product
+
+The most naive approach would be to fit the Lee-Carter (LC) model separately on each product, corresponding to the model below.
+
+\begin{eqnarray*}
+&& d_{x,t,p}\sim \text{Pois}(E_{x,t,p}m_{x,t,p}) \\
+&& \log(m_{x,t,p})=a_{x,p}+b_{x,p}k_{t,p}
+\end{eqnarray*}
+
+Note we only consider the Poisson specification for number of death but it is straightforward to switch them to modelling using the binomial model, i.e. 
+
+\begin{eqnarray*}
+&& d_{x,t,p}\sim \text{Binomial}(E_{x,t,p},q_{x,t,p}) \\
+&& \text{logit}(q_{x,t,p})=a_{x,p}+b_{x,p}k_{t,p}
+\end{eqnarray*}
+
+There are two readily available `R` packages to fit the LC model, `demography` (documentation [here](https://cran.r-project.org/web/packages/demography/demography.pdf)) which was developed earlier on and `StMoMo` (documentation [here](https://cran.r-project.org/web/packages/StMoMo/StMoMo.pdf)) which is more recent and contain more functionalities and models in the package. We will show both to ensure consistencies. Note of course they are not the same, since `demography` package execute the estimation of the original LC approach, which comes with normal model error, SVD etc. But the `StMoMo` corresponds to the Poisson LC model (Brouhns et al., 2002).
+
+### For aggregate data
+
+```{r,warning=FALSE,message=FALSE}
+#prepare the death rates and exposures in matrix format
+rates_subset_aggregate_mat<-matrix(data_subset_aggregate$Qx,nrow=length(unique(data_subset_aggregate$Age)),ncol=length(unique(data_subset_aggregate$Year)),byrow = TRUE)
+rownames(rates_subset_aggregate_mat)<-unique(data_subset_aggregate$Age)
+colnames(rates_subset_aggregate_mat)<-unique(data_subset_aggregate$Year)
+
+expo_subset_aggregate_mat<-matrix(data_subset_aggregate$Exposure,nrow=length(unique(data_subset_aggregate$Age)),ncol=length(unique(data_subset_aggregate$Year)),byrow = TRUE)
+rownames(expo_subset_aggregate_mat)<-unique(data_subset_aggregate$Age)
+colnames(expo_subset_aggregate_mat)<-unique(data_subset_aggregate$Year)
+
+#LC by demography
+
+#install.packages("demography")
+library(demography)
+
+rates_subset_aggregate_demog<-demogdata(rates_subset_aggregate_mat,pop=expo_subset_aggregate_mat,ages=unique(data_subset_aggregate$Age),years=unique(data_subset_aggregate$Year),label="aggregate",type="mortality",name="aggregate")
+plot(rates_subset_aggregate_demog,plot.type = "functions") #rainbow scale: red for earliest years, then blue/indigo for most recent years
+plot(rates_subset_aggregate_demog,plot.type = "time")
+
+lca_subset_aggregate_demog<-lca(rates_subset_aggregate_demog)
+plot(lca_subset_aggregate_demog)
+
+#LC by StMoMo
+
+#install.package("StMoMo")
+library(StMoMo)
+
+rates_subset_aggregate_stmomo<-StMoMoData(rates_subset_aggregate_demog)
+
+LC_log<-lc()
+
+lca_log_subset_aggregate_stmomo<-fit(LC_log,data=rates_subset_aggregate_stmomo)
+plot(lca_log_subset_aggregate_stmomo)
+```
+
+### For other products
+
+```{r,warning=FALSE,message=FALSE}
+###########
+## only ACI
+###########
+
+rates_subset_ACI_mat<-matrix(data_subset_ACI$Qx,nrow=length(unique(data_subset_ACI$Age)),ncol=length(unique(data_subset_ACI$Year)),byrow = TRUE)
+rownames(rates_subset_ACI_mat)<-unique(data_subset_ACI$Age)
+colnames(rates_subset_ACI_mat)<-unique(data_subset_ACI$Year)
+
+expo_subset_ACI_mat<-matrix(data_subset_ACI$Exposure,nrow=length(unique(data_subset_ACI$Age)),ncol=length(unique(data_subset_ACI$Year)),byrow = TRUE)
+rownames(expo_subset_ACI_mat)<-unique(data_subset_ACI$Age)
+colnames(expo_subset_ACI_mat)<-unique(data_subset_ACI$Year)
+
+#LC by demography
+rates_subset_ACI_demog<-demogdata(rates_subset_ACI_mat,pop=expo_subset_ACI_mat,ages=unique(data_subset_ACI$Age),years=unique(data_subset_ACI$Year),label="ACI",type="mortality",name="ACI")
+plot(rates_subset_ACI_demog)
+plot(rates_subset_ACI_demog,plot.type = "time")
+
+lca_subset_ACI_demog<-lca(rates_subset_ACI_demog)
+plot(lca_subset_ACI_demog)
+
+#LC by StMoMo
+rates_subset_ACI_stmomo<-StMoMoData(rates_subset_ACI_demog)
+
+lca_log_subset_ACI_stmomo<-fit(LC_log,data=rates_subset_ACI_stmomo)
+plot(lca_log_subset_ACI_stmomo)
+
+##########
+## only DB
+##########
+
+rates_subset_DB_mat<-matrix(data_subset_DB$Qx,nrow=length(unique(data_subset_DB$Age)),ncol=length(unique(data_subset_DB$Year)),byrow = TRUE)
+rownames(rates_subset_DB_mat)<-unique(data_subset_DB$Age)
+colnames(rates_subset_DB_mat)<-unique(data_subset_DB$Year)
+
+expo_subset_DB_mat<-matrix(data_subset_DB$Exposure,nrow=length(unique(data_subset_DB$Age)),ncol=length(unique(data_subset_DB$Year)),byrow = TRUE)
+rownames(expo_subset_DB_mat)<-unique(data_subset_DB$Age)
+colnames(expo_subset_DB_mat)<-unique(data_subset_DB$Year)
+
+#LC by demography
+rates_subset_DB_demog<-demogdata(rates_subset_DB_mat,pop=expo_subset_DB_mat,ages=unique(data_subset_DB$Age),years=unique(data_subset_DB$Year),label="DB",type="mortality",name="DB")
+plot(rates_subset_DB_demog)
+plot(rates_subset_DB_demog,plot.type = "time")
+
+#LC by StMoMo
+lca_subset_DB_demog<-lca(rates_subset_DB_demog)
+plot(lca_subset_DB_demog)
+
+rates_subset_DB_stmomo<-StMoMoData(rates_subset_DB_demog)
+
+lca_log_subset_DB_stmomo<-fit(LC_log,data=rates_subset_DB_stmomo)
+plot(lca_log_subset_DB_stmomo)
+
+############
+## only SCI
+############
+
+rates_subset_SCI_mat<-matrix(data_subset_SCI$Qx,nrow=length(unique(data_subset_SCI$Age)),ncol=length(unique(data_subset_SCI$Year)),byrow = TRUE)
+rownames(rates_subset_SCI_mat)<-unique(data_subset_SCI$Age)
+colnames(rates_subset_SCI_mat)<-unique(data_subset_SCI$Year)
+
+expo_subset_SCI_mat<-matrix(data_subset_SCI$Exposure,nrow=length(unique(data_subset_SCI$Age)),ncol=length(unique(data_subset_SCI$Year)),byrow = TRUE)
+rownames(expo_subset_SCI_mat)<-unique(data_subset_SCI$Age)
+colnames(expo_subset_SCI_mat)<-unique(data_subset_SCI$Year)
+
+#LC by demography
+rates_subset_SCI_demog<-demogdata(rates_subset_SCI_mat,pop=expo_subset_SCI_mat,ages=unique(data_subset_SCI$Age),years=unique(data_subset_SCI$Year),label="SCI",type="mortality",name="SCI")
+plot(rates_subset_SCI_demog)
+plot(rates_subset_SCI_demog,plot.type = "time")
+
+#the following failed to run
+#lca_subset_SCI_demog<-lca(rates_subset_SCI_demog)
+#plot(lca_subset_SCI_demog)
+
+#LC by StMoMo
+rates_subset_SCI_stmomo<-StMoMoData(rates_subset_SCI_demog)
+
+lca_log_subset_SCI_stmomo<-fit(LC_log,data=rates_subset_SCI_stmomo)
+plot(lca_log_subset_SCI_stmomo)
+
+```
+
+
+
+```{r}
+############
+##plots of parameters in a single plot (individually fitting LC model)
+###########
+
+par(mfrow=c(1,1))
+plot(unique(data_subset_aggregate$Age),lca_log_subset_aggregate_stmomo$ax,type="l",xlab="age",main="alpha",ylab="",ylim=c(-10,-4))
+lines(unique(data_subset_aggregate$Age),lca_log_subset_ACI_stmomo$ax,col=2)
+lines(unique(data_subset_aggregate$Age),lca_log_subset_DB_stmomo$ax,col=3)
+lines(unique(data_subset_aggregate$Age),lca_log_subset_SCI_stmomo$ax,col=4)
+legend("topleft",c("aggregate","ACI","DB","SCI"),lty=1,col=1:4)
+plot(unique(data_subset_aggregate$Age),lca_log_subset_aggregate_stmomo$bx,type="l",xlab="age",main="beta",ylab="",ylim=c(-0.7,0.7))
+lines(unique(data_subset_aggregate$Age),lca_log_subset_ACI_stmomo$bx,col=2)
+lines(unique(data_subset_aggregate$Age),lca_log_subset_DB_stmomo$bx,col=3)
+lines(unique(data_subset_aggregate$Age),lca_log_subset_SCI_stmomo$bx,col=4)
+legend("bottomright",c("aggregate","ACI","DB","SCI"),lty=1,col=1:4)
+plot(unique(data_subset_aggregate$Year),lca_log_subset_aggregate_stmomo$kt,ylim=c(-10,12),type="l",xlab="year",main="kappa",ylab="")
+lines(unique(data_subset_aggregate$Year),lca_log_subset_ACI_stmomo$kt,col=2)
+lines(unique(data_subset_aggregate$Year),lca_log_subset_DB_stmomo$kt,col=3)
+lines(unique(data_subset_aggregate$Year),lca_log_subset_SCI_stmomo$kt,col=4)
+legend("topright",c("aggregate","ACI","DB","SCI"),lty=1,col=1:4)
+```
+
+For $a_x$, the patterns look very similar across the products, with only slight variations. For $b_x$, only SCI demonstrated substantially different pattern. So this may indicate that the model with product-specific betas ($b_{x,p}$), and shared $a_x$, $k_t$  to be superior (Model 2A2)? For $k_t$, all looks the same.
+
+## Various extensions of the LC model
+
+After fitting the LC model on each of the products, we inferred that there is evidence that the fitted parameters demonstrate common trends (e.g. $a_x$ and $k_t$), but not all of them share the same features (e.g. $b_x$). So here, we consider multiple ways to extending the original LC model specification that may be suitable. All the functions to compile the frequentist fitting of these models are included in the file `idea-lr-frequentist.R` and loaded as below. They will not be printed here so click into the file to check out the functions if interested.
+
+```{r}
+source("idea-lr-frequentist.R")
+```
+
+Before applying the functions, we will prepare the following quantities.
+
+```{r,warning=FALSE,message=FALSE}
+
+#number of deaths matrix rounded to nearest integers
+deaths_subset_aggregate_mat<-round(rates_subset_aggregate_mat*expo_subset_aggregate_mat)
+deaths_subset_ACI_mat<-round(rates_subset_ACI_mat*expo_subset_ACI_mat)
+deaths_subset_DB_mat<-round(rates_subset_DB_mat*expo_subset_DB_mat)
+deaths_subset_SCI_mat<-round(rates_subset_SCI_mat*expo_subset_SCI_mat)
+
+A<-nrow(deaths_subset_ACI_mat);T<-ncol(deaths_subset_ACI_mat)
+
+```
+### Model 1A
+
+$$\log(m_{x,t,p})=a_x+c_p+b_xk_t$$
+Constraints: $\sum_{x=1}^A b_x=1$, $\sum_{t=1}^T k_t$=0, $\sum_{p=1}^3 c_p=0$.
+
+```{r,warning=FALSE,message=FALSE}
+
+deaths_combine=round(rbind(deaths_subset_ACI_mat,deaths_subset_DB_mat,deaths_subset_SCI_mat))
+expo_combine=rbind(expo_subset_ACI_mat,expo_subset_DB_mat,expo_subset_SCI_mat)
+
+lca_subset_iterative_poisson_glm_M1A<-iteration.methodB.LC.poisson_M1A(deaths_combine=deaths_combine,
+                                                                       exposure_combine=expo_combine,m=100,beta.initial=rep(0.01,A),A=A,T=T)
+
+par(mfrow=c(2,2))
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M1A$alpha,type="l"
+     ,xlab="age",main="Model 1A: alpha",ylab="")
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M1A$beta,type="l"
+     ,xlab="age",main="Model 1A: beta",ylab="")
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_M1A$kappa,type="l"
+     ,xlab="year",main="Model 1A: kappa",ylab="")
+plot(1:3,c(lca_subset_iterative_poisson_glm_M1A$intercept,-sum(lca_subset_iterative_poisson_glm_M1A$intercept)),
+     pch=4,xlab="",ylab="",xaxt="n",main="Model 1A: c_p")
+axis(1,at=1:3,label=c("p=1 (ACI)","p=2 (DB)","p=3 (SCI)"))
+lca_subset_iterative_poisson_glm_M1A$deviance[length(lca_subset_iterative_poisson_glm_M1A$deviance)]
+lca_subset_iterative_poisson_glm_M1A$model_bic[length(lca_subset_iterative_poisson_glm_M1A$model_bic)]
+```
+
+### Model 1M
+
+$$\log(m_{x,t,p})=a_x(1+c_p)+b_xk_t$$
+$$Constraints: \sum_{x=1}^A b_x=1, \sum_{t=1}^T k_t=0.$$
+We do not need the constraint $\sum_{p=1}^3 c_p=0$ because of the way the model is parameterised, so $c_p$ is identifiable relative to additive constants. I am not sure about the results though, they don't look correct. The model might not have converged due to computational issues (e.g. due to insufficient information from the data to estimate $c_p$).
+
+```{r,warning=FALSE,message=FALSE}
+lca_subset_iterative_poisson_glm_M1M<-iteration.methodB.LC.poisson_M1M(deaths_combine=deaths_combine,
+                                                                       exposure_combine=expo_combine,m=1000,beta.initial=rep(0.01,A),c.initial=c(0,0,0),A=A,T=T)
+
+par(mfrow=c(2,2))
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M1M$alpha,type="l",
+     xlab="age",main="Model 1M: alpha",ylab="")
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M1M$beta,type="l",
+     xlab="age",main="Model 1M: beta",ylab="")
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_M1M$kappa,type="l",
+     xlab="year",main="Model 1M: kappa",ylab="")
+plot(1:3,lca_subset_iterative_poisson_glm_M1M$c.new,pch=4,xlab="",ylab="",xaxt="n",main="Model 1M: c_p")
+axis(1,at=1:3,label=c("p=1 (ACI)","p=2 (DB)","p=3 (SCI)"))
+lca_subset_iterative_poisson_glm_M1M$deviance[length(lca_subset_iterative_poisson_glm_M1M$deviance)]
+lca_subset_iterative_poisson_glm_M1M$model_bic[length(lca_subset_iterative_poisson_glm_M1M$model_bic)]
+```
+
+### Model 1M2
+
+$$\log(m_{x,t,p})=a_xc_p+b_xk_t$$
+Model 1M2 is a similar variant as Model 1M, but should be easier to estimate comparatively. 
+
+$$Constraints: \sum_{x=1}^A b_x=1, \sum_{t=1}^T k_t=0, \sum_{p=1}^{3} c_p=1.$$
+```{r,warning=FALSE,message=FALSE}
+lca_subset_iterative_poisson_glm_M1M2<-iteration.methodB.LC.poisson_M1M2(deaths_combine=deaths_combine,
+                                                                         exposure_combine=expo_combine,m=100,beta.initial=rep(1/A,A),c.initial=c(0.25,0.25),A=A,T=T)
+
+par(mfrow=c(2,2))
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M1M2$alpha,type="l"
+     ,xlab="age",main="Model 1M2: alpha",ylab="")
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M1M2$beta,type="l"
+     ,xlab="age",main="Model 1M2: beta",ylab="")
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_M1M2$kappa,type="l"
+     ,xlab="year",main="Model 1M2: kappa",ylab="")
+plot(1:3,lca_subset_iterative_poisson_glm_M1M2$c.new,pch=4,xlab="",ylab="",xaxt="n",main="Model 1M2: c_p")
+axis(1,at=1:3,label=c("p=1 (ACI)","p=2 (DB)","p=3 (SCI)"))
+lca_subset_iterative_poisson_glm_M1M2$deviance[length(lca_subset_iterative_poisson_glm_M1M2$deviance)]
+lca_subset_iterative_poisson_glm_M1M2$model_bic[length(lca_subset_iterative_poisson_glm_M1M2$model_bic)]
+
+```
+
+As observed above, the estimated parameters behave in a more stable manner.
+
+### Model 1U
+
+$$\log(m_{x,t,p})=a_{x,p}+b_xk_t$$
+$$Constraints: \sum_{x=1}^A b_x=1, \sum_{t=1}^T k_t=0.$$
+
+```{r,warning=FALSE,message=FALSE}
+lca_subset_iterative_poisson_glm_M1U<-iteration.methodB.LC.poisson_M1U(deaths_combine=deaths_combine,
+                                                                       exposure_combine=expo_combine,m=100,beta.initial=rep(0.01,A),A=A,T=T)
+
+par(mfrow=c(2,2))
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M1U$alpha.prod1,col=2,type="l",xlab="age",main="Model 1U: alpha",ylab="")
+lines(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M1U$alpha.prod2,col=3)
+lines(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M1U$alpha.prod3,col=4)
+legend("bottomright",c("p=1 (ACI)","p=2 (DB)","p=3 (SCI)"),lty=1,col=2:4)
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M1U$beta,type="l",xlab="age",main="Model 1U: beta",ylab="")
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_M1U$kappa,type="l",xlab="year",main="Model 1U: kappa",ylab="")
+lca_subset_iterative_poisson_glm_M1U$deviance[length(lca_subset_iterative_poisson_glm_M1U$deviance)]
+lca_subset_iterative_poisson_glm_M1U$model_bic[length(lca_subset_iterative_poisson_glm_M1U$deviance)]
+```
+
+### Model 2A1
+
+$$\log(m_{x,t,p})=a_x+(b_x+c_p)k_t$$
+$$Constraints: \sum_{x=1}^A b_x=1, \sum_{t=1}^T k_t=0, \sum_{p=1}^3 c_p=0.$$
+
+```{r,warning=FALSE,message=FALSE}
+
+lca_subset_iterative_poisson_glm_M2A1<-iteration.methodB.LC.poisson_M2A1(deaths_combine=deaths_combine,
+                                                                         exposure_combine=expo_combine,m=100,beta.initial=rep(0.01,A),c.initial=c(0.001,0.001),A=A,T=T)
+
+par(mfrow=c(2,2))
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M2A1$alpha,type="l",
+     xlab="age",main="Model 2A1: alpha",ylab="")
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M2A1$beta,type="l",
+     xlab="age",main="Model 2A1: beta",ylab="")
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_M2A1$kappa,type="l",
+     xlab="year",main="Model 2A1: kappa",ylab="")
+
+plot(1:3,c(lca_subset_iterative_poisson_glm_M2A1$c.new,-sum(lca_subset_iterative_poisson_glm_M2A1$c.new)),pch=4,
+     xlab="",ylab="",xaxt="n",main="Model 2A1: c_p")
+axis(1,at=1:3,label=c("p=1 (ACI)","p=2 (DB)","p=3 (SCI)"))
+lca_subset_iterative_poisson_glm_M2A1$deviance[length(lca_subset_iterative_poisson_glm_M2A1$deviance)]
+lca_subset_iterative_poisson_glm_M2A1$model_bic[(lca_subset_iterative_poisson_glm_M2A1$model_bic)]
+```
+
+### Model 2Y1
+
+$$\log(m_{x,t,p})=a_x+b_x(k_t+c_p)$$
+$$Constraints: \sum_{x=1}^A b_x=1, \sum_{t=1}^T k_t=0, \sum_{p=1}^3 c_p=0.$$
+
+```{r,warning=FALSE,message=FALSE}
+
+lca_subset_iterative_poisson_glm_M2Y1<-iteration.methodB.LC.poisson_M2Y1(deaths_combine=deaths_combine,
+                                                                         exposure_combine=expo_combine,m=100,beta.initial=rep(1/A,A),c.initial=c(0.001,0.001),A=A,T=T)
+
+par(mfrow=c(2,2))
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M2Y1$alpha,type="l",
+     xlab="age",main="Model 2Y1: alpha",ylab="")
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M2Y1$beta,type="l",
+     xlab="age",main="Model 2Y1: beta",ylab="")
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_M2Y1$kappa,type="l",
+     xlab="year",main="Model 2Y1: kappa",ylab="")
+
+plot(1:3,c(lca_subset_iterative_poisson_glm_M2Y1$c.new,-sum(lca_subset_iterative_poisson_glm_M2Y1$c.new)),
+     pch=4,xlab="",ylab="",xaxt="n",main="Model 2A1: c_p")
+axis(1,at=1:3,label=c("p=1 (ACI)","p=2 (DB)","p=3 (SCI)"))
+lca_subset_iterative_poisson_glm_M2Y1$deviance[length(lca_subset_iterative_poisson_glm_M2Y1$deviance)]
+lca_subset_iterative_poisson_glm_M2Y1$model_bic[length(lca_subset_iterative_poisson_glm_M2Y1$model_bic)]
+```
+
+
+### Model 2A2
+
+$$\log(m_{x,t,p})=a_x+b_{x,p}k_t$$
+$$Constraints: \sum_{x,p} b_{x,p}=1, \sum_{t=1}^T k_t=0.$$
+
+```{r,warning=FALSE,message=FALSE}
+lca_subset_iterative_poisson_glm_M2A2<-iteration.methodB.LC.poisson_M2A2(deaths_combine=deaths_combine,
+                                                                         exposure_combine=expo_combine,m=1000,beta1.initial=rep(1/A,A),beta2.initial=rep(1/A,A),beta3.initial=rep(1/A,A),A=A,T=T)
+
+par(mfrow=c(3,2))
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M2A2$alpha,type="l",
+     xlab="age",main="Model 2A2: alpha",ylab="")
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M2A2$beta1,type="l",
+     xlab="age",main="Model 2A2: beta1",ylab="")
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M2A2$beta2,type="l",
+     xlab="age",main="Model 2A2: beta2",ylab="")
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M2A2$beta3,type="l",
+     xlab="age",main="Model 2A2: beta3",ylab="")
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_M2A2$kappa,type="l",
+     xlab="year",main="kappa",ylab="")
+lca_subset_iterative_poisson_glm_M2A2$deviance[length(lca_subset_iterative_poisson_glm_M2A2$deviance)]
+lca_subset_iterative_poisson_glm_M2A2$model_bic[length(lca_subset_iterative_poisson_glm_M2A2$model_bic)]
+```
+
+### Model 2Y2
+
+$$\log(m_{x,t,p})=a_x+b_xk_{t,p}$$
+$$Constraints: \sum_{x=1}^A b_x=1, \sum_{t,p} k_{t,p}=0.$$
+
+```{r,warning=FALSE,message=FALSE}
+lca_subset_iterative_poisson_glm_M2Y2<-iteration.methodB.LC.poisson_M2Y2(deaths_combine=deaths_combine,
+                                                                         exposure_combine=expo_combine,m=100,beta.initial=rep(1/A,A),A=A,T=T)
+
+par(mfrow=c(3,2))
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M2Y2$alpha,type="l",
+     xlab="age",main="Model 2Y2: alpha",ylab="")
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_M2Y2$beta,type="l",
+     xlab="age",main="Model 2Y2: beta",ylab="")
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_M2Y2$kappa1,type="l",
+     xlab="year",main="Model 2Y2: kappa1",ylab="")
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_M2Y2$kappa2,type="l",
+     xlab="year",main="Model 2Y2: kappa2",ylab="")
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_M2Y2$kappa3,type="l",
+     xlab="year",main="Model 2Y2: kappa3",ylab="")
+
+lca_subset_iterative_poisson_glm_M2Y2$deviance[length(lca_subset_iterative_poisson_glm_M2Y2$deviance)]
+lca_subset_iterative_poisson_glm_M2Y2$model_bic[length(lca_subset_iterative_poisson_glm_M2Y2$model_bice)]
+```
+
+### Li and Lee (2005) Model
+
+$$\log(m_{x,t,p})=a_{x,p}+b_{x,p}k_{t,p}+B_xK_t$$
+$$Constraints: \sum_{x=1}^A b_{x,1}=1, \sum_{x=1}^A b_{x,2}=1, \sum_{t=1}^T k_{t,1}=0, \sum_{t=1}^T k_{t,2}=0, \sum_{x=1}^A B_{x}=1, \sum_{t=1}^T K_{t}=0.$$
+
+We additionally need to impose $b_{x,3}=0$ and $k_{t,3}=0$ for all $x$ and $t$, corresponding to setting the additional product-specific bi-linear term for product 3 to be zero. In other words, we use product 3 as the reference group (i.e. $\log(m_{x,t,3})=a_{x,3}+B_xK_t$).
+
+```{r,warning=FALSE,message=FALSE}
+lca_subset_iterative_poisson_glm_lilee<-iteration.methodB.LC.poisson_lilee(deaths_combine=deaths_combine,
+                                                                           exposure_combine=expo_combine,m=100,beta1.initial=rep(1/A,A),beta2.initial=rep(1/A,A),beta3.initial=rep(1/A,A),Beta.initial=rep(1/A,A),A=A,T=T)
+
+par(mfrow=c(2,2))
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee$alpha1,type="l",col=2,
+     xlab="age",main="Model LiLee: alphas",ylab="")
+lines(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee$alpha2,type="l",col=3,
+      xlab="age",main="Model LiLee: alpha2",ylab="")
+lines(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee$alpha3,type="l",col=4,
+      xlab="age",main="Model LiLee: alpha3",ylab="")
+legend("bottomright",c("p=1 (ACI)","p=2 (DB)","p=3 (SCI)"),lty=1,col=2:4)
+
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee$beta1,col=2,type="l",
+     xlab="age",main="Model LiLee: betas",ylab="")
+lines(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee$beta2,col=3,type="l",
+      xlab="age",main="Model LiLee: beta2",ylab="")
+lines(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee$beta3,col=4,type="l",
+      xlab="age",main="Model LiLee: beta3",ylab="")
+lines(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee$Beta,type="l",xlab="age",main="Model LiLee: Beta",ylab="")
+
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_lilee$kappa1,col=2,type="l",
+     ylim=c(-45,45),xlab="year",main="Model LiLee: kappa2",ylab="")
+lines(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_lilee$kappa2,col=3,type="l",
+      xlab="year",main="Model LiLee: kappa2",ylab="")
+lines(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_lilee$kappa3,col=4,type="l",
+      xlab="year",main="Model LiLee: kappa3",ylab="")
+lines(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_lilee$Kappa,type="l",
+      xlab="year",main="Model LiLee: Kappa",ylab="")
+plot(NULL,xlim=c(0,5),ylim=c(0,10),xlab="",ylab="",main="Label")
+legend("topright",c("p=1 (ACI)","p=2 (DB)","p=3 (SCI)","Bx or Kt"),lty=1,col=c(2:4,1))
+
+lca_subset_iterative_poisson_glm_lilee$deviance[length(lca_subset_iterative_poisson_glm_lilee$deviance)]
+lca_subset_iterative_poisson_glm_lilee$model_bic[length(lca_subset_iterative_poisson_glm_lilee$model_bic)]
+```
+
+### Modified Li and Lee (2005) Model 
+
+This model is a simple special of the original Li and Lee (2005) model, but the age-specific term $a_x$ (representing average log-mortality rates) is shared between the products. 
+
+$$\log(m_{x,t,p})=a_{x}+b_{x,p}k_{t,p}+B_xK_t$$
+$$Constraints: \sum_{x=1}^A b_{x,1}=1, \sum_{x=1}^A b_{x,2}=1, \sum_{t=1}^T k_{t,1}=0, \sum_{t=1}^T k_{t,2}=0, \sum_{x=1}^A B_{x}=1, \sum_{t=1}^T K_{t}=0.$$
+
+Similarly, we impose $b_{x,3}=0$ and $k_{t,3}=0$ for all $x$ and $t$ as explained above.
+
+```{r,warning=FALSE,message=FALSE}
+lca_subset_iterative_poisson_glm_lilee_modified<-iteration.methodB.LC.poisson_lilee_modified(deaths_combine=deaths_combine,
+                                                                                             exposure_combine=expo_combine,m=100,beta1.initial=rep(1/A,A),beta2.initial=rep(1/A,A),beta3.initial=rep(1/A,A),Beta.initial=rep(1/A,A),A=A,T=T)
+
+par(mfrow=c(2,2))
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee_modified$alpha,type="l",
+     xlab="age",main="Model LiLee_modified: alpha",ylab="")
+
+plot(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee_modified$beta1,col=2,
+     type="l",xlab="age",main="Model LiLee_modified: betas",ylab="")
+lines(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee_modified$beta2,col=3,
+      type="l",xlab="age",main="Model LiLee_modified: beta2",ylab="")
+lines(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee_modified$beta3,col=4,
+      type="l",xlab="age",main="Model LiLee_modified: beta3",ylab="")
+lines(unique(data_subset_aggregate$Age),lca_subset_iterative_poisson_glm_lilee_modified$Beta,type="l",
+      xlab="age",main="Model LiLee_modified: Beta",ylab="")
+
+plot(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_lilee_modified$kappa1,col=2,
+     type="l",xlab="year",main="Model LiLee_modified: kappas",ylab="")
+lines(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_lilee_modified$kappa2,col=3,
+      type="l",xlab="year",main="Model LiLee_modified: kappa2",ylab="")
+lines(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_lilee_modified$kappa3,col=4,
+      type="l",xlab="year",main="Model LiLee_modified: kappa3",ylab="")
+lines(unique(data_subset_aggregate$Year),lca_subset_iterative_poisson_glm_lilee_modified$Kappa,type="l",
+      xlab="year",main="Model LiLee_modified: Kappa",ylab="")
+plot(NULL,xlim=c(0,5),ylim=c(0,10),xlab="",ylab="",main="Label")
+legend("topright",c("p=1 (ACI)","p=2 (DB)","p=3 (SCI)","Bx or Kt"),lty=1,col=c(2:4,1))
+
+lca_subset_iterative_poisson_glm_lilee_modified$deviance[length(lca_subset_iterative_poisson_glm_lilee_modified$deviance)]
+lca_subset_iterative_poisson_glm_lilee_modified$model_bic[length(lca_subset_iterative_poisson_glm_lilee_modified$model_bic)]
+```
+
+## References 
+
+Brouhns, N., Denuit, M., & Vermunt, J. K. (2002). A Poisson log-bilinear regression approach to
+the construction of projected lifetables. Insurance: Mathematics and Economics, 31(3), 373-393.
+
