@@ -59,12 +59,16 @@ double loglik_LCp(
       
       for(int p = 0; p < P; p++){
         
-        double mxtp = a(x,p) + b(x,p) * k(t,p);
+        if(arma::is_finite(d(x,t,p))){
+          
+          double mxtp = a(x,p) + b(x,p) * k(t,p);
+          
+          double term1 = d(x,t,p) * (mxtp + log(E(x,t,p)));
+          double term2 = exp(mxtp + log(E(x,t,p)));
+          
+          loglik += term1 - term2;
+        }
         
-        double term1 = d(x,t,p) * (mxtp + log(E(x,t,p)));
-        double term2 = exp(mxtp + log(E(x,t,p)));
-        
-        loglik += term1 - term2;
         
       }
       
@@ -93,12 +97,14 @@ double loglik_LCp_x(
     
     for(int p = 0; p < P; p++){
       
-      double mxtp = a(x,p) + b(x,p) * k(t,p);
-      
-      double term1 = d(x,t,p) * (mxtp + log(E(x,t,p)));
-      double term2 = exp(mxtp + log(E(x,t,p)));
-      
-      loglik += term1 - term2;
+      if(arma::is_finite(d(x,t,p))){
+        double mxtp = a(x,p) + b(x,p) * k(t,p);
+        
+        double term1 = d(x,t,p) * (mxtp + log(E(x,t,p)));
+        double term2 = exp(mxtp + log(E(x,t,p)));
+        
+        loglik += term1 - term2;
+      }
       
     }
     
@@ -125,13 +131,16 @@ double loglik_LCp_t(
     
     for(int p = 0; p < P; p++){
       
-      double mxtp = a(x,p) + b(x,p) * k(t,p);
-      
-      double term1 = d(x,t,p) * (mxtp + log(E(x,t,p)));
-      double term2 = exp(mxtp + log(E(x,t,p)));
-      
-      loglik += term1 - term2;
-      
+      if(arma::is_finite(d(x,t,p))){
+        
+        double mxtp = a(x,p) + b(x,p) * k(t,p);
+        
+        double term1 = d(x,t,p) * (mxtp + log(E(x,t,p)));
+        double term2 = exp(mxtp + log(E(x,t,p)));
+        
+        loglik += term1 - term2;
+        
+      }
     }
     
   }

@@ -1,4 +1,33 @@
 
+fastdmvnorm <- function(x, mu, Lambda){
+  - .5 * t(x - mu) %*% Lambda %*% (x- mu)
+}
+
+
+compute_aap <- function(a, ap, model){
+  
+  if(model == "B"){
+    
+    aap <- matrix(a, X, P, byrow = F)
+    
+  } else if(model == "A"){
+    
+    aap <- matrix(a, X, P, byrow = F) + ap
+    
+  } else if(model == "M"){
+    
+    aap <- matrix(a, X, P, byrow = F) * ap
+    
+  } else if(model == "NP"){
+    
+    aap <- matrix(a, X, P, byrow = F) + ap
+    
+  }
+  
+  
+  aap
+}
+
 loglik_r_cpp <- function(d, E){
 
   function(param){
@@ -34,48 +63,56 @@ loglik_r <- function(d, E){
 
 }
 
+# R loglikelihood 
+
 loglik_LCp_r <- function(a, b, k, d, E){
   
   a <- aperm(array(a, dim = c(X, P, Y)), perm = c(1,3,2))
   b <- aperm(array(b, dim = c(X, P, Y)), perm = c(1,3,2))
   k <- aperm(array(k, dim = c(Y, P, X)), perm = c(3,1,2))
 
-  mxtp <- a + b * k
+  mxtp <- a + b * k + log(E)
   
-  term1 <- d * (mxtp + log(E))
-  term2 <- exp(mxtp + log(E))
+  term1 <- d * mxtp
+  term2 <- exp(mxtp)
   
-  sum(term1 - term2)
+  sum(term1 - term2, na.rm = T)
 }
+
+# R loglikelihood for a specific x
 
 loglik_LCp_x_r <- function(x, a, b, k, d, E){
   
   mxtp <- matrix(a[x,], Y, P, byrow = T) + 
-    matrix(b[x,], Y, P, byrow = T) * k
+    matrix(b[x,], Y, P, byrow = T) * k + log(E[x,,])
   
-  term1 <- d[x,,] * (mxtp + log(E[x,,]))
-  term2 <- exp(mxtp + log(E[x,,]))
+  term1 <- d[x,,] * mxtp
+  term2 <- exp(mxtp)
   
-  sum(term1 - term2)
+  sum(term1 - term2, na.rm = T) 
 }
+
+# R loglikelihood for a specific t
 
 loglik_LCp_t_r <- function(t, a, b, k, d, E){
   
-  mxtp <- a + b * matrix(k[t,], X, P, byrow = T)
+  mxtp <- a + b * matrix(k[t,], X, P, byrow = T) + log(E[,t,])
   
-  term1 <- d[,t,] * (mxtp + log(E[,t,]))
-  term2 <- exp(mxtp + log(E[,t,]))
+  term1 <- d[,t,] * mxtp
+  term2 <- exp(mxtp)
   
-  sum(term1 - term2)
+  sum(term1 - term2, na.rm = T)
 }
+
+# gradient of loglikelihood of ab for a specific x
 
 gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
   
   mxtp <- matrix(a[x] + ap[x,], Y, P, byrow = T) + 
-    (matrix(b[x] + bp[x,], Y, P, byrow = T)) * k
+    (matrix(b[x] + bp[x,], Y, P, byrow = T)) * k + log(E[x,,])
   
-  grad1 <- sum( d[x,,]  - exp(mxtp + log(E[x,,])))
-  grad2 <- sum( k * d[x,,] - exp(mxtp + log(E[x,,])) * k)
+  grad1 <- sum( d[x,,]  - exp(mxtp), na.rm = T)
+  grad2 <- sum( k * d[x,,] - exp(mxtp) * k, na.rm = T)
   
   c(grad1, grad2)
 }
@@ -152,6 +189,7 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
     
   }
   
+  # loglikelihood of ab 
   
   loglik_ab_r <- function(d, E, ap, bp, k){
     
@@ -205,6 +243,8 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
 
 {
   
+  # loglikelihood of k given the rest for a specific t
+  
   loglik_kt_r <- function(t, d, E, a, b, k, kp){
     
     function(param){
@@ -214,10 +254,10 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
       
       # - loglik_LCp_t(t - 1, a, b, k2, d, E)
       
-      mxp <- a + b * matrix(k[t] + kp[t,], X, P, byrow = T)
+      mxp <- a + b * matrix(k[t] + kp[t,], X, P, byrow = T) + log(E[,t,])
 
-      term1 <- sum(d[,t,] * (mxp + log(E[,t,])))
-      term2 <- sum(exp(mxp + log(E[,t,])))
+      term1 <- sum(d[,t,] * mxp, na.rm = T)
+      term2 <- sum(exp(mxp), na.rm = T)
 
       - (term1 - term2)
       
@@ -225,18 +265,28 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
     
   }
   
+  # gradient of loglikelihood of k given the rest for a specific t
+  
   gr_loglik_kt_r <- function(t, d, E, ap, bp, k, kp){
     
     function(param){
       
       k[t] <- param
       
-      - gr_loglik_k_t(t - 1, ap, bp, k, kp, d, E)  
+      # - gr_loglik_k_t(t - 1, ap, bp, k, kp, d, E)
+      
+      mxp <- ap + bp * matrix(k[t] + kp[t,], X, P, byrow = T) + log(E[,t,])
+      
+      term1 <- sum(d[,t,] * bp, na.rm = T)
+      term2 <- sum(exp(mxp) * bp, na.rm = T)
+      
+      - (term1 - term2)
       
     }
     
   }
   
+  # loglikelihood of k conditional on kp
   
   loglik_k0_r <- function(d, E, a, b, kp){
     
@@ -261,19 +311,45 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
     
   }  
   
+  # find proposal values for k0
+  
+  findProposalK0 <- function(t, a2, b2, k, kp, d, E){
+    
+    loglik_kt_current <- loglik_kt_r(t, d, E, a2, b2, k, kp)
+    gr_loglik_kt_current <- gr_loglik_kt_r(t, d, E, a2, b2, k, kp)
+    
+    # find maximum
+    
+    laplace_fit <- optim(
+      par = k[t],
+      fn = loglik_kt_current,
+      method = c("BFGS"),
+      gr = gr_loglik_kt_current,
+      hessian = T
+    )
+    
+    # Sigma_star <- 2 * solve(laplace_fit$hessian)  
+    Sigma_star <- solve(laplace_fit$hessian)  
+    
+    list("k_star" = laplace_fit$par,
+         "Sigma_star" = Sigma_star)
+  }
+  
 }
 
 # UPDATE OF AP
 
 {
+  # loglikelihood of ap under the nonparametric model for a specific x
   
-  loglik_apx_r <- function(x, a, ap, bp, d, E, k){
+  loglik_apx_r <- function(x, a, ap, bp, d, E, k, sd_ap){
     
     function(param){
       
       ap[x,] <- param
       # - loglik_LCp_x(x - 1, a + ap, bp, k, d, E)
-      - loglik_LCp_x_r(x, a + ap, bp, k, d, E)
+      - (loglik_LCp_x_r(x, a + ap, bp, k, d, E) + 
+           sum(dnorm(param, mean = 0, sd = sd_ap, log = T)))
       
     }
     
@@ -288,17 +364,19 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
     
     gr_loglik <- d[x,,] - term2
     
-    apply(gr_loglik, 2, sum)
+    apply(gr_loglik, 2, function(x){
+      sum(x, na.rm = T)
+    })
     
   }
   
-  gr_loglik_apx_r <- function(x, a, ap, bp, d, E, k){
+  gr_loglik_apx_r <- function(x, a, ap, bp, d, E, k, sd_ap){
     
     function(param){
       
       ap[x,] <- param
       # - gr_loglik_ap_x(x - 1, a, ap, bp, k, d, E)
-      - gr_loglik_ap_r_fun(x, a, ap, bp, k, d, E)
+      - (gr_loglik_ap_r_fun(x, a, ap, bp, k, d, E) - param / sd_ap^2)
       
     }
     
@@ -310,15 +388,15 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
     
     function(param){
       
-      ap <- matrix(param, X, P, byrow = T)
+      aap <- matrix(a, X, P, byrow = F) + matrix(param, X, P, byrow = T)
       # - loglik_LCp_x(x - 1, a + ap, bp, k, d, E)
-      - loglik_LCp_r(a + ap, bp, k, d, E)
+      - loglik_LCp_r(aap, bp, k, d, E)
       
     }
     
   }
   
-  # gradient of loglikelihood under the additive model for a
+  # function: gradient of loglikelihood of ap under the additive model for a
   
   gr_loglik_ap_add_r_fun <- function(a, ap, b, k, d, E){
     
@@ -334,9 +412,13 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
     
     gr_loglik <- d - term2
     
-    apply(gr_loglik, 3, sum)
+    apply(gr_loglik, 3, function(x){
+      sum(x, na.rm = T)
+    })
     
   }
+  
+  # gradient of loglikelihood of ap under the additive model for a
   
   gr_loglik_ap_r <- function(a, bp, d, E, k){
     
@@ -377,10 +459,10 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
   
   # find proposal values in the nonparametric model for a specific x
   
-  findProposalApXNonparametrics <- function(x, a, ap, b2, d, E, k2){
+  findProposalApXNonparametrics <- function(x, a, ap, b2, d, E, k2, sd_ap){
     
-    loglik_apx_current <- loglik_apx_r(x, a, ap, b2, d, E, k2)
-    gr_loglik_apx_current <- gr_loglik_apx_r(x, a, ap, b2, d, E, k2)
+    loglik_apx_current <- loglik_apx_r(x, a, ap, b2, d, E, k2, sd_ap)
+    gr_loglik_apx_current <- gr_loglik_apx_r(x, a, ap, b2, d, E, k2, sd_ap)
     
     # find maximum
     laplace_fit <- optim(
@@ -401,20 +483,34 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
          "Sigma_star" = Sigma_star)
   }
   
+  # loglikelihood under the multiplicative model for a
+  
+  loglik_ap_m_r <- function(a, bp, d, E, k){
+    
+    function(param){
+      
+      ap <- matrix(param, X, P, byrow = T)
+      # - loglik_LCp_x(x - 1, a + ap, bp, k, d, E)
+      - loglik_LCp_r(a + ap, bp, k, d, E)
+      
+    }
+    
+  }
 }
 
 # UPDATE OF BP
 
 {
   
-  loglik_bpx_r <- function(x, ap, b, bp, d, E, k){
+  loglik_bpx_r <- function(x, ap, b, bp, d, E, k, sd_bp){
     
     function(param){
       
       bp[x,] <- param
       bbp <- matrix(b, X, P, byrow = F) + bp
       # - loglik_LCp_x(x - 1, ap, bbp, k, d, E)
-      - loglik_LCp_x_r(x, ap, bbp, k, d, E)
+      - (loglik_LCp_x_r(x, ap, bbp, k, d, E) + 
+           sum(dnorm(param, mean = 0, sd = sd_bp, log = T)))
       
     }
     
@@ -429,28 +525,132 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
     
     gr_loglik <- d[x,,] * k - term2 * k
     
-    apply(gr_loglik, 2, sum)
+    apply(gr_loglik, 2, function(x){
+      sum(x, na.rm = T)
+    })
     
   }
   
-  gr_loglik_bpx_r <- function(x, ap, b, bp, d, E, k){
+  gr_loglik_bpx_r <- function(x, ap, b, bp, d, E, k, sd_bp){
     
     function(param){
       
       bp[x,] <- param
       # - gr_loglik_bp_x(x - 1, ap, b, bp, k, d, E)
-      - gr_loglik_bp_r_fun(x, ap, b, bp, k, d, E)
+      - (gr_loglik_bp_r_fun(x, ap, b, bp, k, d, E) - param / sd_bp^2)
       
     }
     
   }  
   
+  # loglikelihood under the additive model for b
+  
+  loglik_bp_r <- function(ap, b, d, E, kp){
     
+    function(param){
+      
+      bbp <- matrix(b, X, P, byrow = F) + matrix(param, X, P, byrow = T)
+      # - loglik_LCp_x(x - 1, a + ap, bp, k, d, E)
+      - loglik_LCp_r(ap, bbp, kp, d, E)
+      
+    }
+    
+  }
+  
+  # function: gradient of loglikelihood of ap under the additive model for a
+  
+  gr_loglik_bp_add_r_fun <- function(a, b, bp, k, d, E){
+    
+    bbp <- matrix(b, X, P, byrow = F) + bp
+    
+    a <- aperm(array(a, dim = c(X, P, Y)), perm = c(1,3,2))
+    b <- aperm(array(bbp, dim = c(X, P, Y)), perm = c(1,3,2))
+    k <- aperm(array(k, dim = c(Y, P, X)), perm = c(3,1,2))
+    
+    m_xtp <- a + b * k + log(E)
+    
+    term2 <- exp(m_xtp)
+    
+    gr_loglik <- (d - term2) * k
+    
+    apply(gr_loglik, 3, function(x){
+      sum(x, na.rm = T)
+    })
+    
+  }
+  
+  # gradient of loglikelihood of ap under the additive model for a
+  
+  gr_loglik_bp_r <- function(ap, b, d, E, k){
+    
+    function(param){
+      
+      bp <- matrix(param, X, P, byrow = T)
+      # - loglik_LCp_x(x - 1, a + ap, bp, k, d, E)
+      - gr_loglik_bp_add_r_fun(ap, b, bp, k, d, E)
+      
+    }
+    
+  }
+  
+  # find proposal values in the additive model
+  
+  findProposalBpAdditive <- function(a2, b, d, E, k2){
+    
+    loglik_bp_current <- loglik_bp_r(a2, b, d, E, k2)
+    gr_loglik_bp_current <- gr_loglik_bp_r(a2, b, d, E, k2)
+    
+    # find maximum
+    laplace_fit <- optim(
+      par = rep(0, P),
+      fn = loglik_bp_current,
+      method = c("BFGS"),
+      gr = gr_loglik_bp_current,
+      hessian = T
+    )
+    
+    bp_star <- laplace_fit$par
+    H_star <- laplace_fit$hessian
+    
+    Sigma_star <- 2 * solve(H_star)  
+    
+    list("bp_star" = bp_star,
+         "Sigma_star" = Sigma_star)
+  }
+  
+  # find proposal values in the nonparametric model for a specific x
+  
+  findProposalBpXNonparametrics <- function(x, a2, b, bp, d, E, k2, sd_bp){
+    
+    loglik_bpx_current <- loglik_bpx_r(x, a2, b, bp, d, E, k2, sd_bp)
+    gr_loglik_bpx_current <- gr_loglik_bpx_r(x, a2, b, bp, d, E, k2, sd_bp)
+    
+    # find maximum
+    laplace_fit <- optim(
+      # par = ap[x,],
+      par = rep(0, P),
+      fn = loglik_bpx_current,
+      method = c("BFGS"),
+      gr = gr_loglik_bpx_current,
+      hessian = T
+    )
+    
+    bp_star <- laplace_fit$par
+    H_star <- laplace_fit$hessian
+    
+    Sigma_star <- 2 * solve(H_star)
+    
+    list("bp_star" = bp_star,
+         "Sigma_star" = Sigma_star)
+  }
+  
 }
 
 # UPDATE OF KP
 
 {
+  
+  # loglikelihood of kp for a specific t
   
   loglik_kpt_r <- function(t, ap, bp, k, kp, d, E){
     
@@ -464,16 +664,7 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
     
   }
   
-  gr_loglik_kpt_r_fun <- function(t, ap, bp, k, kp, d, E){
-    
-    mxtp <- ap + bp * matrix(k[t] + kp[t,], X, P, byrow = T) + log(E[,t,])
-    
-    term1 <- d[,t,] * bp
-    term2 <- exp(mxtp) * bp
-    
-    apply(term1 - term2, 2, sum)
-    
-  }  
+  # gradient of loglikelihood of kp for a specific t
   
   gr_loglik_kpt_r <- function(t, ap, bp, k, kp, d, E){
     
@@ -487,7 +678,126 @@ gr_loglik_ab_x_r <- function(x, a, b, ab, bp, k, d, E){
     
   }  
   
+  # function: gradient of loglikelihood of kp for a specific t
+  
+  gr_loglik_kpt_r_fun <- function(t, ap, bp, k, kp, d, E){
     
+    mxtp <- ap + bp * matrix(k[t] + kp[t,], X, P, byrow = T) + log(E[,t,])
+    
+    term1 <- d[,t,] * bp
+    term2 <- exp(mxtp) * bp
+    
+    apply(term1 - term2, 2, function(x){
+      sum(x, na.rm = T)
+    })
+    
+  }  
+  
+  # loglikelihood under the additive model for k
+  
+  loglik_kp_r <- function(ap, bp, d, E, k){
+    
+    function(param){
+      
+      kkp <- 
+        matrix(k, Y, P, byrow = F) + 
+        matrix(param, Y, P, byrow = T)
+      # - loglik_LCp_x(x - 1, a + ap, bp, k, d, E)
+      - loglik_LCp_r(ap, bp, kkp, d, E)
+      
+    }
+    
+  }
+  
+  # function: gradient of loglikelihood of kp under the additive model for k
+  
+  gr_loglik_kp_add_r_fun <- function(a, b, k, kp, d, E){
+    
+    kkp <- matrix(k, Y, P, byrow = F) + kp
+    
+    a <- aperm(array(p, dim = c(X, P, Y)), perm = c(1,3,2))
+    b <- aperm(array(b, dim = c(X, P, Y)), perm = c(1,3,2))
+    k <- aperm(array(kp, dim = c(Y, P, X)), perm = c(3,1,2))
+    
+    m_xtp <- a + b * k + log(E)
+    
+    term2 <- exp(m_xtp)
+    
+    gr_loglik <- d - term2
+    
+    apply(gr_loglik, 3, function(x){
+      sum(x, na.rm = T)
+    })
+    
+  }
+  
+  # gradient of loglikelihood of ap under the additive model for a
+  
+  gr_loglik_kp_r <- function(a, b, d, E, k){
+    
+    function(param){
+      
+      kp <- matrix(param, Y, P, byrow = T)
+      # - loglik_LCp_x(x - 1, a + ap, bp, k, d, E)
+      - gr_loglik_kp_add_r_fun(a, b, k, kp, d, E)
+      
+    }
+    
+  }
+   
+  # find proposal values in the additive model
+  
+  findProposalKpAdditive <- function(a2, b2, d, E, k){
+    
+    loglik_kp_current <- loglik_kp_r(a2, b2, d, E, k)
+    gr_loglik_kp_current <- gr_loglik_kp_r(a2, b2, d, E, k)
+    
+    # find maximum
+    laplace_fit <- optim(
+      # par = ap[x,],
+      par = rep(0, P),
+      fn = loglik_kp_current,
+      method = c("BFGS"),
+      # gr = gr_loglik_kp_current,
+      hessian = T
+    )
+    
+    kp_star <- laplace_fit$par
+    H_star <- laplace_fit$hessian
+    
+    Sigma_star <- 2 * solve(H_star)  
+    
+    list("kp_star" = kp_star,
+         "Sigma_star" = Sigma_star)
+  }
+  
+  # find proposal values in the nonparametric model for a specific x
+  
+  findProposalKptNonparametrics <- function(t, a2, b2, d, E, 
+                                            k, kp, sd_kt){
+    
+    loglik_kpt_current <- loglik_kpt_r(t, a2, b2, k, kp, d, E)
+    gr_loglik_kpt_current <- gr_loglik_kpt_r(t, a2, b2, k, kp, d, E)
+    
+    # find maximum
+    laplace_fit <- optim(
+      par = kp[t,],
+      # par = rep(0, P),
+      fn = loglik_kpt_current,
+      gr = gr_loglik_kpt_current,
+      method = c("BFGS"),
+      hessian = T
+    )
+    
+    kp_star <- laplace_fit$par
+    H_star <- laplace_fit$hessian
+    
+    Sigma_star <- 2 * solve(H_star)
+    
+    list("kp_star" = kp_star,
+         "Sigma_star" = Sigma_star)
+  }
+  
 }
 
 #
