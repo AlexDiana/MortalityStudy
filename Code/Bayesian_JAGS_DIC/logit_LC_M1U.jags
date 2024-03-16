@@ -1,0 +1,26 @@
+model{
+  for (i in 1:p){
+    for (j in 1:A){
+      for (k in 1:T){
+        dxt[i,j,k]~dbin(q[i,j,k],ext[i,j,k])
+        logit(q[i,j,k])<-alpha[i,j]+beta[j] * kappa[k]
+      }
+    }
+  }
+  kappa<-c(kappa1,kappa_rest)
+  kappa1<--sum(kappa_rest)
+  for (l in 1:(T-1)){
+      kappa_rest[l]~dnorm(0,0.0001)
+    }
+  
+  beta<-c(beta1,beta_rest)
+  beta1<-1-sum(beta_rest)
+  beta_rest~dmnorm(prior_mean_beta,prior_prec_beta)
+  
+  for (i in 1:p){
+  for (j in 1:A){
+  alpha[i,j]~dnorm(0,0.0001)
+  }
+  }
+
+}
