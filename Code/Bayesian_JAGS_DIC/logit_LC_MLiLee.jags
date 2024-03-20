@@ -26,9 +26,9 @@ model{
   }
 
   for (i in 1:(p-1)){
-  for (j in 1:(T-1)){
-  kappa_rest_mat[i,j]~dnorm(0,0.001)
-  }
+
+    kappa_rest_mat[i,1:(T-1)]~dmnorm(prior_mean_kappa,prior_prec_kappa)
+
   }
 
   Kappa<-c(-sum(Kappa_rest),Kappa_rest)
@@ -43,10 +43,10 @@ model{
 
   }
 
-  for (i in 1:(p-1)){
-  for (j in 1:(A-1)){
-  beta_rest_mat[i,j]~dnorm(1/A,10000)
-  }
+for (i in 1:(p-1)){
+
+    beta_rest_mat[i,1:(A-1)]~dmnorm(prior_mean_beta,prior_prec_beta)
+
   }
 
   Beta<-c(1-sum(Beta_rest),Beta_rest)
@@ -54,7 +54,7 @@ model{
   
   for (i in 1:p){
   for (j in 1:A){
-  alpha[i,j]~dnorm(0,0.01)
+  alpha[i,j]~dnorm(0,0.001)
   }
   }
 

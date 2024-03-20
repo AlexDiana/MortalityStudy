@@ -7,11 +7,8 @@ model{
       }
     }
   }
-  kappa<-c(kappa1,kappa_rest)
-  kappa1<--sum(kappa_rest)
-  for (l in 1:(T-1)){
-      kappa_rest[l]~dnorm(0,0.0001)
-    }
+  kappa<-c(-sum(kappa_rest),kappa_rest)
+  kappa_rest~dmnorm(prior_mean_kappa,prior_prec_kappa)
 
   for (i in 1:p){
   for (j in 1:A){
@@ -23,7 +20,7 @@ model{
   beta_rest~dmnorm(prior_mean_beta,prior_prec_beta)
   
   for (j in 1:A){
-  alpha[j]~dnorm(0,0.0001)
+  alpha[j]~dnorm(0,0.001)
   }
 
 }

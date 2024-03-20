@@ -7,22 +7,18 @@ model{
       }
     }
   }
-  kappa<-c(kappa1,kappa_rest)
-  kappa1<--sum(kappa_rest)
-  for (l in 1:(T-1)){
-      kappa_rest[l]~dnorm(0,0.001)
-    }
+  kappa<-c(-sum(kappa_rest),kappa_rest)
+  kappa_rest~dmnorm(prior_mean_kappa,prior_prec_kappa)
   
   for (m in 1:A){
       alpha[m]~dnorm(0,0.001)
     }
 
-  beta<-c(beta1,beta_rest)
-  beta1<-1-sum(beta_rest)
+  beta<-c(1-sum(beta_rest),beta_rest)
   beta_rest~dmnorm(prior_mean_beta,prior_prec_beta)
 
   c_p<-c(-sum(c_p_rest),c_p_rest)
   for (m in 1:(p-1)){  
-  c_p_rest[m]~dnorm(0,0.1)
+  c_p_rest[m]~dnorm(0,0.01)
   }
 }
