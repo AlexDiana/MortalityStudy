@@ -190,8 +190,8 @@ realData <- T
 
 load(here("Data","data_products.rda"))
 
-d <- d[50:83,,-3]
-E <- E[50:83,,-3]
+d <- d[10:60,,-3]
+E <- E[10:60,,-3]
 
 X <- dim(d)[1]
 Y <- dim(d)[2]
@@ -319,6 +319,9 @@ niter <- 1000
   sd_ap <- .1
   sd_bp <- 1
   sd_kp <- 4
+  
+  sd_b <- 3
+  sd_k <- 3
 }
 
 # output 
@@ -349,7 +352,7 @@ niter <- 1000
 
 for (iter in 1:(niter + nburn)) {
   
-  print(k[1:2])
+  print(b[1:10])
   
   print(paste0("Gamma A = ",gamma_a,
                ", Gamma B = ",gamma_b,
@@ -440,6 +443,11 @@ for (iter in 1:(niter + nburn)) {
     loglik_star <- - loglik_k_current(k_proposed)
     loglik_current <- - loglik_k_current(k)
 
+    logprior_star <- sum(dnorm(k_proposed,
+                               0, sd = sd_k, log = T))
+    logprior_current <- sum(dnorm(k,
+                                  0, sd = sd_k, log = T))
+    
     # compute proposal for all variables together
     {
       # logproposal_star <- dmvnorm(as.vector(k_proposed), as.vector(k_star), Sigma_star, log = T)
@@ -456,6 +464,7 @@ for (iter in 1:(niter + nburn)) {
     }
     
     mh_ratio <- exp(loglik_star - loglik_current + 
+                      logprior_star - logprior_current +
                       logproposal_current  - logproposal_star)
 
     if(runif(1) < mh_ratio){
@@ -670,7 +679,13 @@ for (iter in 1:(niter + nburn)) {
       }
     }
     
+    logprior_star <- sum(dnorm(ab_proposed[X + 1:X],
+                               0, sd = sd_b, log = T))
+    logprior_current <- sum(dnorm(b,
+                               0, sd = sd_b, log = T))
+    
     mh_ratio <- exp(loglik_star - loglik_current + 
+                      logprior_star - logprior_current +
                       logproposal_current -  logproposal_star)
     
     if(runif(1) < mh_ratio){
@@ -2086,10 +2101,8 @@ qplot(1:niter, loglik_output[1:niter]) +
     data_plot$True <- m_true
   }
   
-  
   data_plot$CI_min <- m_CI[1,]
   data_plot$CI_max <- m_CI[2,]
-
  
   data_plot <- data_plot %>% 
     rename(Age = Var1,
@@ -2103,9 +2116,13 @@ qplot(1:niter, loglik_output[1:niter]) +
     idx_age <- which(1:X == data_plot$Age[i])
     idx_year <- which(1:Y == data_plot$Year[i])
     idx_product <- which(1:P == as.numeric(data_plot$Product)[i])
-    log((d / E)[idx_age, idx_year, idx_product] + .001)
+    log((d / E)[idx_age, idx_year, idx_product])
   }))
   
+  data_plot$zeroDeaths <- is.infinite(data_plot$crudeRate)
+    
+  data_plot$crudeRate[is.infinite(data_plot$crudeRate)] <- 
+    min(data_plot$crudeRate[!is.infinite(data_plot$crudeRate)], na.rm = T) - 1
   
   # by year
   
@@ -2182,3 +2199,10 @@ qplot(1:niter, loglik_output[1:niter]) +
       scale_x_continuous(breaks = 1:X, labels = ages)
     }
 }
+
+# DIAGNOSTICS ------
+
+
+qplot(1:niter, a_output[,1])
+qplot(1:niter, b_output[,2])
+qplot(1:niter, k_output[,2])
