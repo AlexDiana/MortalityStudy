@@ -1,0 +1,58 @@
+model{
+  for (i in 1:(p-1)){
+    for (j in 1:A){
+      for (k in 1:T){
+        dxt[i,j,k]~dbin(q[i,j,k],ext[i,j,k])
+        logit(q[i,j,k])<-alpha[j]+beta[i,j]*kappa[i,k]+Beta[j]*Kappa[k]
+      }
+    }
+  }
+
+  for (j in 1:A){
+      for (k in 1:T){
+        dxt[p,j,k]~dbin(q[p,j,k],ext[p,j,k])
+        logit(q[p,j,k])<-alpha[j]+Beta[j]*Kappa[k]
+      }
+    }
+
+  for (i in 1:(p-1)){
+  for (j in 2:T){
+  kappa[i,j]<-kappa_rest_mat[i,j-1]
+  }
+
+  kappa[i,1]<--sum(kappa_rest_mat[i,])
+
+  }
+
+  for (i in 1:(p-1)){
+
+    kappa_rest_mat[i,1:(T-1)]~dmnorm(prior_mean_kappa,prior_prec_kappa)
+
+  }
+
+  Kappa<-c(-sum(Kappa_rest),Kappa_rest)
+  Kappa_rest~dmnorm(prior_mean_Kappa,prior_prec_Kappa)
+
+  for (i in 1:(p-1)){
+  for (j in 2:A){
+  beta[i,j]<-beta_rest_mat[i,j-1]
+  }
+
+  beta[i,1]<-1-sum(beta_rest_mat[i,])
+
+  }
+
+  for (i in 1:(p-1)){
+
+    beta_rest_mat[i,1:(A-1)]~dmnorm(prior_mean_beta,prior_prec_beta)
+
+  }
+
+  Beta<-c(1-sum(Beta_rest),Beta_rest)
+  Beta_rest~dmnorm(prior_mean_Beta,prior_prec_Beta)
+  
+  for (j in 1:A){
+  alpha[j]~dnorm(0,0.001)
+  }
+
+}
