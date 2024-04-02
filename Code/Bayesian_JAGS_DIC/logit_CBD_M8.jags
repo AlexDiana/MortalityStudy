@@ -1,0 +1,30 @@
+model{
+  for (i in 1:p){
+    for (j in 1:A){
+      for (k in 1:T){
+        dxt[i,j,k]~dbin(q[i,j,k],ext[i,j,k])
+        logit(q[i,j,k])<-kappa1[i,k]+kappa2[i,k]*(x[j]-xbar)+gamma[k-j+A]*(xc[i]-x[j])
+      }
+    }
+  }
+
+  gamma<-c(-sum(cohorts_count[2:C]*gamma_rest),gamma_rest)
+  gamma_rest[1:(C-1)]~dmnorm(prior_mean_cohort,prior_prec_cohort)
+
+  for (i in 1:p){
+
+    kappa1[i,1:T]~dmnorm(prior_mean_kappa1,prior_prec_kappa1)
+
+  }
+
+
+  for (i in 1:p){
+
+    kappa2[i,1:T]~dmnorm(prior_mean_kappa2,prior_prec_kappa2)
+
+  }
+
+for (i in 1:p){
+xc[i]~dnorm(0,0.001)
+}
+}

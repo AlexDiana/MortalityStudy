@@ -1,0 +1,42 @@
+model{
+  for (i in 1:p){
+    for (j in 1:A){
+      for (k in 1:T){
+        dxt[i,j,k]~dbin(q[i,j,k],ext[i,j,k])
+        logit(q[i,j,k])<-alpha[i,j]+kappa[i,k]+beta[i,j]*(t[k]-tbar)+gamma[k-j+A]
+      }
+    }
+  }
+
+  gamma<-c((sum(cohorts_rev[3:(C-1)]*cohorts_rev[4:C]*gamma_rest))/((1-C)*(C-2)),gamma_rest,(sum(cohorts[1:(C-3)]*cohorts_rev[3:(C-1)]*gamma_rest))/(2-C),(sum(cohorts[1:(C-3)]*cohorts_rev[4:C]*gamma_rest))/(C-1))
+  gamma_rest[1:(C-3)]~dmnorm(prior_mean_cohort,prior_prec_cohort)
+
+  for (i in 1:p){
+  for (j in 2:(T-1)){
+  kappa[i,j]<-kappa_rest_mat[i,j-1]
+  }
+
+  kappa[i,1]<-(sum(t_rev[3:T]*kappa_rest_mat[i,]))/(1-T)
+  kappa[i,T]<-(sum((t[1:(T-2)])*kappa_rest_mat[i,]))/(1-T)
+
+  }
+
+  for (i in 1:p){
+
+    kappa_rest_mat[i,1:(T-2)]~dmnorm(prior_mean_kappa,prior_prec_kappa)
+
+  }
+
+  for (i in 1:p){
+
+    beta[i,1:A]~dmnorm(prior_mean_beta,prior_prec_beta)
+
+  }
+
+  for (i in 1:p){
+  for (j in 1:A){
+  alpha[i,j]~dnorm(0,0.001)
+  }
+  }
+
+}

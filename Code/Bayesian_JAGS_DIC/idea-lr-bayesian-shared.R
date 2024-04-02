@@ -2,6 +2,12 @@
 #set working directory
 #setwd("G:/IDEA-LR/")
 
+##load packages
+library(rjags)
+#install.packages("insight")
+library(insight)
+library(demography)
+
 ###############
 ##Some functions
 ##############
@@ -44,8 +50,13 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   deaths_combined_vectorised=as.vector(deaths_combined_array)
   expo_combined_vectorised=as.vector(expo_combined_array)
   
-  DIC_table<-matrix(0,nrow=1,ncol=10)
-  colnames(DIC_table)<-c("M1A","M1U","M1M","M2A1","M2A2","M2Y1","M2Y2","MLiLee","MLiLee_modified","all_separately")
+  ages<-as.numeric(dimnames(deaths_combined_array)[[2]])
+  years<-as.numeric(dimnames(deaths_combined_array)[[3]])
+  
+  M=23
+  DIC_table<-matrix(0,nrow=1,ncol=M)
+  colnames(DIC_table)<-c("LC_M1A","LC_M1U","LC_M1M","LC_M2A1","LC_M2A2","LC_M2Y1","LC_M2Y2","LC_MLiLee","LC_MLiLee_modified","LC_all_separately","CBD_M3","CBD_M3_sep","CBD_M5","CBD_M6","CBD_M6_sep","CBD_M7","CBD_M7_sep","CBD_M8","CBD_M8_sep","APCI","APCI_sep","RH","RH_sep")
+  iter=1
   
   #Model 1A
   
@@ -62,7 +73,9 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   vars<-c("q","alpha","beta","kappa","c_p")
   logit_LC_M1A_jags<-jags.model("logit_LC_M1A.jags",data=data,inits=inits,n.chain=1)
   fit_logit_LC_M1A_jags<-coda.samples(logit_LC_M1A_jags,vars,n.iter=n_iter,thin=1)
-  DIC_table[1,"M1A"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M1A_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  DIC_table[1,"LC_M1A"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M1A_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: LC_M1A"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
   
   #Model 1U
   
@@ -79,7 +92,9 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   vars<-c("q","alpha","beta","kappa")
   logit_LC_M1U_jags<-jags.model("logit_LC_M1U.jags",data=data,inits=inits,n.chain=1)
   fit_logit_LC_M1U_jags<-coda.samples(logit_LC_M1U_jags,vars,n.iter=n_iter,thin=1)
-  DIC_table[1,"M1U"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M1U_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  DIC_table[1,"LC_M1U"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M1U_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: LC_M1U"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
   
   #Model 1M
   
@@ -96,7 +111,9 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   vars<-c("q","alpha","beta","kappa","c_p")
   logit_LC_M1M_jags<-jags.model("logit_LC_M1M.jags",data=data,inits=inits,n.chain=1)
   fit_logit_LC_M1M_jags<-coda.samples(logit_LC_M1M_jags,vars,n.iter=n_iter,thin=1)
-  DIC_table[1,"M1M"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M1M_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  DIC_table[1,"LC_M1M"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M1M_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: LC_M1M"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
   
   #Model 2A1
   
@@ -113,7 +130,9 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   vars<-c("q","alpha","beta","kappa","c_p")
   logit_LC_M2A1_jags<-jags.model("logit_LC_M2A1.jags",data=data,inits=inits,n.chain=1)
   fit_logit_LC_M2A1_jags<-coda.samples(logit_LC_M2A1_jags,vars,n.iter=n_iter,thin=1)
-  DIC_table[1,"M2A1"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M2A1_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  DIC_table[1,"LC_M2A1"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M2A1_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: LC_M2A1"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
   
   #Model 2A2
   
@@ -130,7 +149,9 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   vars<-c("q","alpha","beta","kappa")
   logit_LC_M2A2_jags<-jags.model("logit_LC_M2A2.jags",data=data,inits=inits,n.chain=1)
   fit_logit_LC_M2A2_jags<-coda.samples(logit_LC_M2A2_jags,vars,n.iter=n_iter,thin=1)
-  DIC_table[1,"M2A2"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M2A2_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  DIC_table[1,"LC_M2A2"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M2A2_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: LC_M2A2"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
   
   #Model 2Y1
   
@@ -147,7 +168,9 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   vars<-c("q","alpha","beta","kappa","c_p")
   logit_LC_M2Y1_jags<-jags.model("logit_LC_M2Y1.jags",data=data,inits=inits,n.chain=1)
   fit_logit_LC_M2Y1_jags<-coda.samples(logit_LC_M2Y1_jags,vars,n.iter=n_iter,thin=1)
-  DIC_table[1,"M2Y1"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M2Y1_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  DIC_table[1,"LC_M2Y1"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M2Y1_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: LC_M2Y1"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
   
   #Model 2Y2
   
@@ -164,7 +187,9 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   vars<-c("q","alpha","beta","kappa")
   logit_LC_M2Y2_jags<-jags.model("logit_LC_M2Y2.jags",data=data,inits=inits,n.chain=1)
   fit_logit_LC_M2Y2_jags<-coda.samples(logit_LC_M2Y2_jags,vars,n.iter=n_iter,thin=1)
-  DIC_table[1,"M2Y2"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M2Y2_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  DIC_table[1,"LC_M2Y2"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_M2Y2_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: LC_M2Y2"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
   
   #Model LiLee
   
@@ -181,7 +206,9 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   vars<-c("q","alpha","beta","kappa","Beta","Kappa")
   logit_LC_MLiLee_jags<-jags.model("logit_LC_MLiLee.jags",data=data,inits=inits,n.chain=1)
   fit_logit_LC_MLiLee_jags<-coda.samples(logit_LC_MLiLee_jags,vars,n.iter=n_iter,thin=1)
-  DIC_table[1,"MLiLee"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_MLiLee_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  DIC_table[1,"LC_MLiLee"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_MLiLee_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: MLiLee"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
   
   ##Model LiLee modified 
   
@@ -198,7 +225,9 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   vars<-c("q","alpha","beta","kappa","Beta","Kappa")
   logit_LC_MLiLee_modified_jags<-jags.model("logit_LC_MLiLee_modified.jags",data=data,inits=inits,n.chain=1)
   fit_logit_LC_MLiLee_modified_jags<-coda.samples(logit_LC_MLiLee_modified_jags,vars,n.iter=n_iter,thin=1)
-  DIC_table[1,"MLiLee_modified"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_MLiLee_modified_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  DIC_table[1,"LC_MLiLee_modified"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_MLiLee_modified_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: MLiLee modified"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
   
   ##all LC separately
   
@@ -215,13 +244,351 @@ auto_fit_DIC_fn<-function(deaths_combined_array,expo_combined_array,n_iter=10000
   vars<-c("q","alpha","beta","kappa")
   logit_LC_all_separately_jags<-jags.model("logit_LC_all_separately.jags",data=data,inits=inits,n.chain=1)
   fit_logit_LC_all_separately_jags<-coda.samples(logit_LC_all_separately_jags,vars,n.iter=n_iter,thin=1)
-  DIC_table[1,"all_separately"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_all_separately_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  DIC_table[1,"LC_all_separately"]<-DIC_jags2_fn(mcmc_object=fit_logit_LC_all_separately_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: all LC_sep"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##CBD M3
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  cohorts_count_mat<-matrix(NA,nrow=A,ncol=T)
+  for (i in 1:A){
+    for(j in 1:T){
+      cohorts_count_mat[i,j]<-j-i+A
+    }
+  }
+  cohorts_count<-as.vector(table(cohorts_count_mat))
+  prior_mean_kappa=rep(0,T-1)
+  sigma2_kappa<-1000
+  matrix_kappa_A<-diag(rep(1,T));matrix_kappa_A[1,]<-1
+  matrix_kappa_B<-matrix_kappa_A%*%t(matrix_kappa_A)
+  prior_prec_kappa=solve((matrix_kappa_B[-1,-1]-1/matrix_kappa_B[1,1]*matrix_kappa_B[-1,1]%*%t(matrix_kappa_B[1,-1]))*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-2)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C-1))
+  matrix_cohort_A<-rbind(cohorts_count[-1],matrix_cohort_A[(1:(C-2)),])
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[-1,-1]-1/(matrix_cohort_B[1,1])*matrix_cohort_B[-1,1]%*%t(matrix_cohort_B[1,-1]))*sigma2_cohort)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_kappa=prior_mean_kappa,prior_prec_kappa=prior_prec_kappa,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,cohorts_count=cohorts_count)
+  inits<-function() (list(alpha=matrix(0,nrow=p,ncol=A),kappa_rest_mat=matrix(0,nrow=p,ncol=T-1),gamma_rest=rep(0,C-2)))
+  vars<-c("q","alpha","kappa","gamma")
+  logit_CBD_M3_jags<-jags.model("logit_CBD_M3.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_CBD_M3_jags<-coda.samples(logit_CBD_M3_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"CBD_M3"]<-DIC_jags2_fn(mcmc_object=fit_logit_CBD_M3_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: CBD_M3"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##CBD M3 (sep)
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  cohorts_count_mat<-matrix(NA,nrow=A,ncol=T)
+  for (i in 1:A){
+    for(j in 1:T){
+      cohorts_count_mat[i,j]<-j-i+A
+    }
+  }
+  cohorts_count<-as.vector(table(cohorts_count_mat))
+  prior_mean_kappa=rep(0,T-1)
+  sigma2_kappa<-1000
+  matrix_kappa_A<-diag(rep(1,T));matrix_kappa_A[1,]<-1
+  matrix_kappa_B<-matrix_kappa_A%*%t(matrix_kappa_A)
+  prior_prec_kappa=solve((matrix_kappa_B[-1,-1]-1/matrix_kappa_B[1,1]*matrix_kappa_B[-1,1]%*%t(matrix_kappa_B[1,-1]))*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-2)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C-1))
+  matrix_cohort_A<-rbind(cohorts_count[-1],matrix_cohort_A[(1:(C-2)),])
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[-1,-1]-1/(matrix_cohort_B[1,1])*matrix_cohort_B[-1,1]%*%t(matrix_cohort_B[1,-1]))*sigma2_cohort)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_kappa=prior_mean_kappa,prior_prec_kappa=prior_prec_kappa,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,cohorts_count=cohorts_count)
+  inits<-function() (list(alpha=matrix(0,nrow=p,ncol=A),kappa_rest_mat=matrix(0,nrow=p,ncol=T-1),gamma_rest_mat=matrix(0,nrow=p,ncol=C-2)))
+  vars<-c("q","alpha","kappa","gamma")
+  logit_CBD_M3_sep_jags<-jags.model("logit_CBD_M3_sep.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_CBD_M3_sep_jags<-coda.samples(logit_CBD_M3_sep_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"CBD_M3_sep"]<-DIC_jags2_fn(mcmc_object=fit_logit_CBD_M3_sep_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: CBD_M3_sep"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##CBD M5
+  
+  prior_mean_kappa1=prior_mean_kappa2=rep(0,T)
+  sigma2_kappa<-1000
+  prior_prec_kappa1=prior_prec_kappa2=solve(diag(rep(1,T))*sigma2_kappa)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,p=p,prior_mean_kappa1=prior_mean_kappa1,prior_prec_kappa1=prior_prec_kappa1,prior_mean_kappa2=prior_mean_kappa2,prior_prec_kappa2=prior_prec_kappa2,x=ages,xbar=mean(ages))
+  inits<-function() (list(kappa1=matrix(0,nrow=p,ncol=T),kappa2=matrix(0,nrow=p,ncol=T)))
+  vars<-c("q","kappa1","kappa2")
+  logit_CBD_M5_jags<-jags.model("logit_CBD_M5.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_CBD_M5_jags<-coda.samples(logit_CBD_M5_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"CBD_M5"]<-DIC_jags2_fn(mcmc_object=fit_logit_CBD_M5_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: CBD_M5"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##CBD M6
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  prior_mean_kappa1=prior_mean_kappa2=rep(0,T)
+  sigma2_kappa<-1000
+  prior_prec_kappa1=prior_prec_kappa2=solve(diag(rep(1,T))*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-2)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C))
+  matrix_cohort_A<-rbind(rep(1/C,C),(cohorts-mean(cohorts))/C,matrix_cohort_A[(2:(C-1)),])
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[3:C,3:C]-matrix_cohort_B[3:C,1:2]%*%solve(matrix_cohort_B[1:2,1:2])%*%matrix_cohort_B[1:2,3:C])*sigma2_cohort)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_kappa1=prior_mean_kappa1,prior_prec_kappa1=prior_prec_kappa1,prior_mean_kappa2=prior_mean_kappa2,prior_prec_kappa2=prior_prec_kappa2,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,x=ages,xbar=mean(ages),cohorts=cohorts,cohorts_rev=cohorts_rev)
+  inits<-function() (list(kappa1=matrix(0,nrow=p,ncol=T),kappa2=matrix(0,nrow=p,ncol=T),gamma_rest=rep(0,C-2)))
+  vars<-c("q","kappa1","kappa2","gamma")
+  logit_CBD_M6_jags<-jags.model("logit_CBD_M6.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_CBD_M6_jags<-coda.samples(logit_CBD_M6_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"CBD_M6"]<-DIC_jags2_fn(mcmc_object=fit_logit_CBD_M6_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: CBD_M6"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##CBD M6 (sep)
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  prior_mean_kappa1=prior_mean_kappa2=rep(0,T)
+  sigma2_kappa<-1000
+  prior_prec_kappa1=prior_prec_kappa2=solve(diag(rep(1,T))*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-2)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C))
+  matrix_cohort_A<-rbind(rep(1/C,C),(cohorts-mean(cohorts))/C,matrix_cohort_A[(2:(C-1)),])
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[3:C,3:C]-matrix_cohort_B[3:C,1:2]%*%solve(matrix_cohort_B[1:2,1:2])%*%matrix_cohort_B[1:2,3:C])*sigma2_cohort)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_kappa1=prior_mean_kappa1,prior_prec_kappa1=prior_prec_kappa1,prior_mean_kappa2=prior_mean_kappa2,prior_prec_kappa2=prior_prec_kappa2,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,x=ages,xbar=mean(ages),cohorts=cohorts,cohorts_rev=cohorts_rev)
+  inits<-function() (list(kappa1=matrix(0,nrow=p,ncol=T),kappa2=matrix(0,nrow=p,ncol=T),gamma_rest_mat=matrix(0,nrow=p,ncol=C-2)))
+  vars<-c("q","kappa1","kappa2","gamma")
+  logit_CBD_M6_sep_jags<-jags.model("logit_CBD_M6_sep.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_CBD_M6_sep_jags<-coda.samples(logit_CBD_M6_sep_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"CBD_M6_sep"]<-DIC_jags2_fn(mcmc_object=fit_logit_CBD_M6_sep_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: CBD_M6_sep"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##CBD M7
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  prior_mean_kappa1=prior_mean_kappa2=prior_mean_kappa3=rep(0,T)
+  sigma2_kappa<-1000
+  prior_prec_kappa1=prior_prec_kappa2=prior_prec_kappa3=solve(diag(rep(1,T))*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-3)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C))
+  matrix_cohort_A<-rbind(rep(1/C,C),(cohorts-mean(cohorts))/sd(cohorts),(cohorts^2-mean(cohorts^2))/sd(cohorts^2),matrix_cohort_A[(2:(C-2)),])
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[4:C,4:C]-matrix_cohort_B[4:C,1:3]%*%solve(matrix_cohort_B[1:3,1:3])%*%matrix_cohort_B[1:3,4:C])*sigma2_cohort)
+  var_x=mean((ages-mean(ages))^2)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_kappa1=prior_mean_kappa1,prior_prec_kappa1=prior_prec_kappa1,prior_mean_kappa2=prior_mean_kappa2,prior_prec_kappa2=prior_prec_kappa2,prior_mean_kappa3=prior_mean_kappa3,prior_prec_kappa3=prior_prec_kappa3,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,x=ages,xbar=mean(ages),cohorts=cohorts,cohorts_rev=cohorts_rev,var_x=var_x)
+  inits<-function() (list(kappa1=matrix(0,nrow=p,ncol=T),kappa2=matrix(0,nrow=p,ncol=T),kappa3=matrix(0,nrow=p,ncol=T),gamma_rest=rep(0,C-3)))
+  vars<-c("q","kappa1","kappa2","kappa3","gamma")
+  logit_CBD_M7_jags<-jags.model("logit_CBD_M7.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_CBD_M7_jags<-coda.samples(logit_CBD_M7_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"CBD_M7"]<-DIC_jags2_fn(mcmc_object=fit_logit_CBD_M7_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: CBD_M7"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##CBD M7 (sep)
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  prior_mean_kappa1=prior_mean_kappa2=prior_mean_kappa3=rep(0,T)
+  sigma2_kappa<-1000
+  prior_prec_kappa1=prior_prec_kappa2=prior_prec_kappa3=solve(diag(rep(1,T))*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-3)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C))
+  matrix_cohort_A<-rbind(rep(1/C,C),(cohorts-mean(cohorts))/sd(cohorts),(cohorts^2-mean(cohorts^2))/sd(cohorts^2),matrix_cohort_A[(2:(C-2)),])
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[4:C,4:C]-matrix_cohort_B[4:C,1:3]%*%solve(matrix_cohort_B[1:3,1:3])%*%matrix_cohort_B[1:3,4:C])*sigma2_cohort)
+  var_x=mean((ages-mean(ages))^2)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_kappa1=prior_mean_kappa1,prior_prec_kappa1=prior_prec_kappa1,prior_mean_kappa2=prior_mean_kappa2,prior_prec_kappa2=prior_prec_kappa2,prior_mean_kappa3=prior_mean_kappa3,prior_prec_kappa3=prior_prec_kappa3,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,x=ages,xbar=mean(ages),cohorts=cohorts,cohorts_rev=cohorts_rev,var_x=var_x)
+  inits<-function() (list(kappa1=matrix(0,nrow=p,ncol=T),kappa2=matrix(0,nrow=p,ncol=T),kappa3=matrix(0,nrow=p,ncol=T),gamma_rest_mat=matrix(0,nrow=p,ncol=(C-3))))
+  vars<-c("q","kappa1","kappa2","kappa3","gamma")
+  logit_CBD_M7_sep_jags<-jags.model("logit_CBD_M7_sep.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_CBD_M7_sep_jags<-coda.samples(logit_CBD_M7_sep_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"CBD_M7_sep"]<-DIC_jags2_fn(mcmc_object=fit_logit_CBD_M7_sep_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: CBD_M7_sep"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##CBD M8
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  cohorts_count_mat<-matrix(NA,nrow=A,ncol=T)
+  for (i in 1:A){
+    for(j in 1:T){
+      cohorts_count_mat[i,j]<-j-i+A
+    }
+  }
+  cohorts_count<-as.vector(table(cohorts_count_mat))
+  prior_mean_kappa1=prior_mean_kappa2=rep(0,T)
+  sigma2_kappa<-1000
+  prior_prec_kappa1=prior_prec_kappa2=solve(diag(rep(1,T))*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-1)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C))
+  matrix_cohort_A[1,]<-cohorts_count
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[-1,-1]-1/(matrix_cohort_B[1,1])*matrix_cohort_B[-1,1]%*%t(matrix_cohort_B[1,-1]))*sigma2_cohort)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_kappa1=prior_mean_kappa1,prior_prec_kappa1=prior_prec_kappa1,prior_mean_kappa2=prior_mean_kappa2,prior_prec_kappa2=prior_prec_kappa2,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,x=ages,xbar=mean(ages),cohorts_count=cohorts_count)
+  inits<-function() (list(xc=rep(0,p),kappa1=matrix(0,nrow=p,ncol=T),kappa2=matrix(0,nrow=p,ncol=T),gamma_rest=rep(0,C-1)))
+  vars<-c("q","kappa1","kappa2","gamma","xc")
+  logit_CBD_M8_jags<-jags.model("logit_CBD_M8.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_CBD_M8_jags<-coda.samples(logit_CBD_M8_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"CBD_M8"]<-DIC_jags2_fn(mcmc_object=fit_logit_CBD_M8_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: CBD_M8"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##CBD M8 (sep)
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  cohorts_count_mat<-matrix(NA,nrow=A,ncol=T)
+  for (i in 1:A){
+    for(j in 1:T){
+      cohorts_count_mat[i,j]<-j-i+A
+    }
+  }
+  cohorts_count<-as.vector(table(cohorts_count_mat))
+  prior_mean_kappa1=prior_mean_kappa2=rep(0,T)
+  sigma2_kappa<-1000
+  prior_prec_kappa1=prior_prec_kappa2=solve(diag(rep(1,T))*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-1)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C))
+  matrix_cohort_A[1,]<-cohorts_count
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[-1,-1]-1/(matrix_cohort_B[1,1])*matrix_cohort_B[-1,1]%*%t(matrix_cohort_B[1,-1]))*sigma2_cohort)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_kappa1=prior_mean_kappa1,prior_prec_kappa1=prior_prec_kappa1,prior_mean_kappa2=prior_mean_kappa2,prior_prec_kappa2=prior_prec_kappa2,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,x=ages,xbar=mean(ages),cohorts_count=cohorts_count)
+  inits<-function() (list(xc=rep(0,p),kappa1=matrix(0,nrow=p,ncol=T),kappa2=matrix(0,nrow=p,ncol=T),gamma_rest_mat=matrix(0,nrow=p,ncol=C-1)))
+  vars<-c("q","kappa1","kappa2","gamma","xc")
+  logit_CBD_M8_sep_jags<-jags.model("logit_CBD_M8_sep.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_CBD_M8_sep_jags<-coda.samples(logit_CBD_M8_sep_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"CBD_M8_sep"]<-DIC_jags2_fn(mcmc_object=fit_logit_CBD_M8_sep_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: CBD_M8_sep"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##APCI
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  t<-1:T;t_rev<-rev(t)
+  prior_mean_beta=rep(0,A)
+  sigma2_beta<-1
+  prior_prec_beta<-solve(diag(rep(1,A))*sigma2_beta)
+  prior_mean_kappa=rep(0,T-2)
+  sigma2_kappa<-1000
+  matrix_kappa_A<-diag(rep(1,T))
+  matrix_kappa_A<-rbind(rep(1/T,T),((1:T)-mean((1:T)))/sd((1:T)),matrix_kappa_A[(2:(T-1)),])
+  matrix_kappa_B<-matrix_kappa_A%*%t(matrix_kappa_A)
+  prior_prec_kappa=solve((matrix_kappa_B[3:T,3:T]-matrix_kappa_B[3:T,1:2]%*%solve(matrix_kappa_B[1:2,1:2])%*%matrix_kappa_B[1:2,3:T])*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-3)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C))
+  matrix_cohort_A<-rbind(rep(1/C,C),(cohorts-mean(cohorts))/sd(cohorts),(cohorts^2-mean(cohorts^2))/sd(cohorts^2),matrix_cohort_A[(2:(C-2)),])
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[4:C,4:C]-matrix_cohort_B[4:C,1:3]%*%solve(matrix_cohort_B[1:3,1:3])%*%matrix_cohort_B[1:3,4:C])*sigma2_cohort)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_beta=prior_mean_beta,prior_prec_beta=prior_prec_beta,prior_mean_kappa=prior_mean_kappa,prior_prec_kappa=prior_prec_kappa,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,t=t,tbar=mean(t),t_rev=t_rev,cohorts=cohorts,cohorts_rev=cohorts_rev)
+  inits<-function() (list(alpha=matrix(0,nrow=p,ncol=A),beta=matrix(0,nrow=p,ncol=A),kappa_rest_mat=matrix(0,nrow=p,ncol=T-2),gamma_rest=rep(0,C-3)))
+  vars<-c("q","alpha","beta","kappa","gamma")
+  logit_APCI_jags<-jags.model("logit_APCI.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_APCI_jags<-coda.samples(logit_APCI_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"APCI"]<-DIC_jags2_fn(mcmc_object=fit_logit_APCI_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: APCI"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##APCI (sep)
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  t<-1:T;t_rev<-rev(t)
+  prior_mean_beta=rep(0,A)
+  sigma2_beta<-1
+  prior_prec_beta<-solve(diag(rep(1,A))*sigma2_beta)
+  prior_mean_kappa=rep(0,T-2)
+  sigma2_kappa<-1000
+  matrix_kappa_A<-diag(rep(1,T))
+  matrix_kappa_A<-rbind(rep(1/T,T),((1:T)-mean((1:T)))/sd((1:T)),matrix_kappa_A[(2:(T-1)),])
+  matrix_kappa_B<-matrix_kappa_A%*%t(matrix_kappa_A)
+  prior_prec_kappa=solve((matrix_kappa_B[3:T,3:T]-matrix_kappa_B[3:T,1:2]%*%solve(matrix_kappa_B[1:2,1:2])%*%matrix_kappa_B[1:2,3:T])*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-3)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C))
+  matrix_cohort_A<-rbind(rep(1/C,C),(cohorts-mean(cohorts))/sd(cohorts),(cohorts^2-mean(cohorts^2))/sd(cohorts^2),matrix_cohort_A[(2:(C-2)),])
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[4:C,4:C]-matrix_cohort_B[4:C,1:3]%*%solve(matrix_cohort_B[1:3,1:3])%*%matrix_cohort_B[1:3,4:C])*sigma2_cohort)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_beta=prior_mean_beta,prior_prec_beta=prior_prec_beta,prior_mean_kappa=prior_mean_kappa,prior_prec_kappa=prior_prec_kappa,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,t=t,tbar=mean(t),t_rev=t_rev,cohorts=cohorts,cohorts_rev=cohorts_rev)
+  inits<-function() (list(alpha=matrix(0,nrow=p,ncol=A),beta=matrix(0,nrow=p,ncol=A),kappa_rest_mat=matrix(0,nrow=p,ncol=T-2),gamma_rest_mat=matrix(0,nrow=p,ncol=C-3)))
+  vars<-c("q","alpha","beta","kappa","gamma")
+  logit_APCI_sep_jags<-jags.model("logit_APCI_sep.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_APCI_sep_jags<-coda.samples(logit_APCI_sep_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"APCI_sep"]<-DIC_jags2_fn(mcmc_object=fit_logit_APCI_sep_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: APCI_sep"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##RH
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  prior_mean_beta=rep(1/A,A-1)
+  sigma2_beta<-0.1
+  prior_prec_beta=solve(sigma2_beta*(diag(rep(1,A-1))-1/A*(matrix(1,nrow=A-1,ncol=A-1))))
+  prior_mean_kappa=rep(0,T-1)
+  sigma2_kappa<-1000
+  matrix_kappa_A<-diag(rep(1,T));matrix_kappa_A[1,]<-1
+  matrix_kappa_B<-matrix_kappa_A%*%t(matrix_kappa_A)
+  prior_prec_kappa=solve((matrix_kappa_B[-1,-1]-1/matrix_kappa_B[1,1]*matrix_kappa_B[-1,1]%*%t(matrix_kappa_B[1,-1]))*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-2)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C))
+  matrix_cohort_A<-rbind(rep(1/C,C),(cohorts-mean(cohorts))/C,matrix_cohort_A[(2:(C-1)),])
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[3:C,3:C]-matrix_cohort_B[3:C,1:2]%*%solve(matrix_cohort_B[1:2,1:2])%*%matrix_cohort_B[1:2,3:C])*sigma2_cohort)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_beta=prior_mean_beta,prior_prec_beta=prior_prec_beta,prior_mean_kappa=prior_mean_kappa,prior_prec_kappa=prior_prec_kappa,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,cohorts=cohorts,cohorts_rev=cohorts_rev)
+  inits<-function() (list(alpha=matrix(0,nrow=p,ncol=A),beta_rest_mat=matrix(0,nrow=p,ncol=A-1),kappa_rest_mat=matrix(0,nrow=p,ncol=T-1),gamma_rest=rep(0,C-2)))
+  vars<-c("q","alpha","beta","kappa","gamma")
+  logit_RH_jags<-jags.model("logit_RH.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_RH_jags<-coda.samples(logit_RH_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"RH"]<-DIC_jags2_fn(mcmc_object=fit_logit_RH_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: RH"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
+  
+  ##RH (sep)
+  
+  C<-A+T-1
+  cohorts<-1:C;cohorts_rev<-rev(cohorts)
+  prior_mean_beta=rep(1/A,A-1)
+  sigma2_beta<-0.1
+  prior_prec_beta=solve(sigma2_beta*(diag(rep(1,A-1))-1/A*(matrix(1,nrow=A-1,ncol=A-1))))
+  prior_mean_kappa=rep(0,T-1)
+  sigma2_kappa<-1000
+  matrix_kappa_A<-diag(rep(1,T));matrix_kappa_A[1,]<-1
+  matrix_kappa_B<-matrix_kappa_A%*%t(matrix_kappa_A)
+  prior_prec_kappa=solve((matrix_kappa_B[-1,-1]-1/matrix_kappa_B[1,1]*matrix_kappa_B[-1,1]%*%t(matrix_kappa_B[1,-1]))*sigma2_kappa)
+  prior_mean_cohort=rep(0,C-2)
+  sigma2_cohort<-1
+  matrix_cohort_A<-diag(rep(1,C))
+  matrix_cohort_A<-rbind(rep(1/C,C),(cohorts-mean(cohorts))/C,matrix_cohort_A[(2:(C-1)),])
+  matrix_cohort_B<-matrix_cohort_A%*%t(matrix_cohort_A)
+  prior_prec_cohort=solve((matrix_cohort_B[3:C,3:C]-matrix_cohort_B[3:C,1:2]%*%solve(matrix_cohort_B[1:2,1:2])%*%matrix_cohort_B[1:2,3:C])*sigma2_cohort)
+  data<-list(dxt=deaths_combined_array,ext=expo_combined_array,A=A,T=T,C=C,p=p,prior_mean_beta=prior_mean_beta,prior_prec_beta=prior_prec_beta,prior_mean_kappa=prior_mean_kappa,prior_prec_kappa=prior_prec_kappa,prior_mean_cohort=prior_mean_cohort,prior_prec_cohort=prior_prec_cohort,cohorts=cohorts,cohorts_rev=cohorts_rev)
+  inits<-function() (list(alpha=matrix(0,nrow=p,ncol=A),beta_rest_mat=matrix(0,nrow=p,ncol=A-1),kappa_rest_mat=matrix(0,nrow=p,ncol=T-1),gamma_rest_mat=matrix(0,nrow=p,ncol=C-2)))
+  vars<-c("q","alpha","beta","kappa","gamma")
+  logit_RH_sep_jags<-jags.model("logit_RH_sep.jags",data=data,inits=inits,n.chain=1)
+  fit_logit_RH_sep_jags<-coda.samples(logit_RH_sep_jags,vars,n.iter=n_iter,thin=1)
+  DIC_table[1,"RH_sep"]<-DIC_jags2_fn(mcmc_object=fit_logit_RH_sep_jags[[1]],deaths_combined_vectorised=deaths_combined_vectorised,expo_combined_vectorised =expo_combined_vectorised,A=A,T=T,p=p)
+  print_colour(paste0("Completed: RH_sep"," (",iter,"/",M,")","\n"),"red")
+  iter<-iter+1
   
   best_model<-colnames(DIC_table)[which.min(DIC_table)]
   worst_model<-colnames(DIC_table)[which.max(DIC_table)]
   
-  result<-list(best=get(paste0("fit_logit_LC_",best_model,"_jags"))[[1]],
-               worst=get(paste0("fit_logit_LC_",worst_model,"_jags"))[[1]])
+  result<-list(best=get(paste0("fit_logit_",best_model,"_jags"))[[1]],
+               worst=get(paste0("fit_logit_",worst_model,"_jags"))[[1]])
   
   list(result=result,DIC=DIC_table,best_model=best_model,worst_model=worst_model)
   
@@ -243,10 +610,14 @@ analyse_output_fn<-function(mcmc_object,deaths_combined_array,expo_combined_arra
   years_names<-dimnames(deaths_combined_array)[[3]]
   
   crude_rates<-deaths_combined_array/expo_combined_array
+  crude_rates<-provideDimnames(crude_rates,base=list(p_names,ages_names,years_names))
   
   rates_lower<-array(dim=c(p,A,T))
   rates_median<-array(dim=c(p,A,T))
   rates_upper<-array(dim=c(p,A,T))
+  rates_lower<-provideDimnames(rates_lower,base=list(p_names,ages_names,years_names))
+  rates_median<-provideDimnames(rates_median,base=list(p_names,ages_names,years_names))
+  rates_upper<-provideDimnames(rates_upper,base=list(p_names,ages_names,years_names))
   interval_name<-c("lower","median","upper")
   
   rates_mat<-matrix(0,nrow=n,ncol=A*T)
@@ -301,8 +672,8 @@ analyse_output_fn<-function(mcmc_object,deaths_combined_array,expo_combined_arra
   for (i in 1:length(years)){
     plot(NULL,xlim=range(ages),ylim=yrange_plot,main=years[i],xlab="age",ylab="log rates")
     for (j in 1:p){
-    lines(ages,log(rates_median[j,,i]),type="l",col=(j+1));lines(ages,log(rates_lower[j,,i]),lty=2,col=(j+1));lines(ages,log(rates_upper[j,,i]),lty=2,col=(j+1))
-    points(ages,log(crude_rates[j,,i]),col=(j+1),pch=19)
+    lines(ages,log(rates_median[j,,as.character(years[i])]),type="l",col=(j+1));lines(ages,log(rates_lower[j,,as.character(years[i])]),lty=2,col=(j+1));lines(ages,log(rates_upper[j,,as.character(years[i])]),lty=2,col=(j+1))
+    points(ages,log(crude_rates[j,,as.character(years[i])]),col=(j+1),pch=19,cex=0.5)
     legend("bottomright",p_names,lty=1,col=((1:p)+1))
     
   }}
@@ -367,17 +738,16 @@ ages=unique(data_subset_ACI$Age);years=unique(data_subset_ACI$Year)
 deaths_combined_array<-provideDimnames(deaths_combined_array,base=list(c("ACI","DB","SCI"),as.character(ages),as.character(years)))
 expo_combined_array<-provideDimnames(expo_combined_array,base=list(c("ACI","DB","SCI"),as.character(ages),as.character(years)))
 
-
-##load packages
-library(rjags)
-
 ##########
-##Analyse the data
+##Analyse the data (products)
 ##########
 
 #run the auto model-selection function to find the best Bayesian model
 result_auto_fit<-auto_fit_DIC_fn(deaths_combined_array=deaths_combined_array,expo_combined_array=expo_combined_array,n_iter=10000)
 result_auto_fit$DIC
+par(mfrow=c(1,1),mar=c(10,4,4,2))
+col_min<-rep(1,length(result_auto_fit$DIC));col_min[which.min(result_auto_fit$DIC[1,])]<-2
+barplot(result_auto_fit$DIC[1,],ylim=c(0,4000),las=3,col=col_min)
 result_auto_fit$best_model
 result_auto_fit$worst_model
 
@@ -392,7 +762,7 @@ analyse_output_fn(mcmc_object=result_auto_fit$result$worst,deaths_combined_array
 analyse_output_fn(mcmc_object=result_auto_fit$result$best,deaths_combined_array=deaths_combined_array,expo_combined_array=expo_combined_array,ages=unique(data_subset_ACI$Age),years=c(2016,2019,2020))
 #worst model results
 analyse_output_fn(mcmc_object=result_auto_fit$result$worst,deaths_combined_array=deaths_combined_array,expo_combined_array=expo_combined_array,ages=unique(data_subset_ACI$Age),years=c(2016,2019,2020))
-
+gc()
 
 ###############
 ##Data (gender/sex)
@@ -421,50 +791,146 @@ ages<-0:100;years<-as.numeric(colnames(d[,,1]))[121:181]
 dxt_array_sex<-provideDimnames(dxt_array_sex,base=list(c("male","female"),as.character(ages),as.character(years)))
 Ext_array_sex<-provideDimnames(Ext_array_sex,base=list(c("male","female"),as.character(ages),as.character(years)))
 
-library(demography)
-rates_male_demog<-demogdata((dxt_array_sex/Ext_array_sex)[1,,],pop=Ext_array_sex[1,,],ages=as.numeric(dimnames(dxt_array_sex)[[2]]),years=as.numeric(dimnames(dxt_array_sex)[[3]]),label="male",type="mortality",name="male")
-plot(rates_male_demog)
-plot(lca(rates_male_demog))
-rates_female_demog<-demogdata((dxt_array_sex/Ext_array_sex)[2,,],pop=Ext_array_sex[2,,],ages=as.numeric(dimnames(dxt_array_sex)[[2]]),years=as.numeric(dimnames(dxt_array_sex)[[3]]),label="female",type="mortality",name="female")
-plot(rates_female_demog)
-plot(lca(rates_female_demog))
-
-##load packages
-library(rjags)
-
 ##########
-##Analyse the data
+##Analyse the data (gender/sex)
 ##########
 
 #for some reasons,the following cell has larger number of death than exposure?(Check!) so i just set a random larger number
 #Ext_array_sex[1,101,113]<-30
 
 #run the auto model-selection function to find the best Bayesian model
-result_auto_fit_sex<-auto_fit_DIC_fn(deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,n_iter=20000)
+result_auto_fit_sex<-auto_fit_DIC_fn(deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,n_iter=5000)
 result_auto_fit_sex$DIC
 result_auto_fit_sex$best_model
 result_auto_fit_sex$worst_model
+par(mfrow=c(1,1),mar=c(10,4,4,2))
+col_min<-rep(1,length(result_auto_fit_sex$DIC));col_min[which.min(result_auto_fit_sex$DIC[1,])]<-2
+barplot(result_auto_fit_sex$DIC[1,],las=3,col=col_min)
 
 #plot the output(fitted rates)
 #best model results
-analyse_output_fn(mcmc_object=result_auto_fit_sex$result$best,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=ages,years=years)
+#analyse_output_fn(mcmc_object=result_auto_fit_sex$result$best,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=as.numeric(dimnames(dxt_array_sex)[[2]]),years=years)
 #worst model results
-analyse_output_fn(mcmc_object=result_auto_fit_sex$result$worst,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=ages,years=years)
+#analyse_output_fn(mcmc_object=result_auto_fit_sex$result$worst,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=as.numeric(dimnames(dxt_array_sex)[[2]]),years=years)
 
 #focusing on selected years
 #best model results
-analyse_output_fn(mcmc_object=result_auto_fit_sex$result$best,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=ages,years=c(1961,1981,2001))
+#analyse_output_fn(mcmc_object=result_auto_fit_sex$result$best,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=as.numeric(dimnames(dxt_array_sex)[[2]]),years=c(1961,1981,2001))
 #worst model results
-analyse_output_fn(mcmc_object=result_auto_fit_sex$result$worst,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=ages,years=c(1961,1981,2001))
+#analyse_output_fn(mcmc_object=result_auto_fit_sex$result$worst,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=as.numeric(dimnames(dxt_array_sex)[[2]]),years=c(1961,1981,2001))
 
 
+###############
+##Data (countries)
+##############
+
+load("data_country.rda")
+
+p<-dim(dxt_array_country)[1];A<-dim(dxt_array_country)[2];T<-dim(dxt_array_country)[3]
+ages<-as.numeric(dimnames(dxt_array_country)[[2]]);years<-as.numeric(dimnames(dxt_array_country)[[3]])
+
+#library(demography)
+#rates_AUS_male_demog<-demogdata((dxt_array_country/Ext_array_country)[1,,],pop=Ext_array_country[1,,],ages=ages,years=years,label="AUS_male",type="mortality",name="AUS_male")
+#plot(rates_AUS_male_demog)
+#plot(lca(rates_AUS_male_demog))
+#rates_US_male_demog<-demogdata((dxt_array_country/Ext_array_country)[5,,],pop=Ext_array_country[5,,],ages=ages,years=years,label="US_male",type="mortality",name="US_male")
+#plot(rates_US_male_demog)
+#plot(lca(rates_US_male_demog))
+
+##########
+##Analyse the data (countries)
+##########
+
+#for some reasons,the following cell has larger number of death than exposure?(Check!) so i just set a random larger number
+#Ext_array_sex[1,101,113]<-30
+
+#run the auto model-selection function to find the best Bayesian model
+result_auto_fit_country<-auto_fit_DIC_fn(deaths_combined_array=dxt_array_country,expo_combined_array=Ext_array_country,n_iter=5000)
+result_auto_fit_country$DIC
+result_auto_fit_country$best_model
+result_auto_fit_country$worst_model
+par(mfrow=c(1,1),mar=c(10,4,4,2))
+col_min<-rep(1,length(result_auto_fit_country$DIC));col_min[which.min(result_auto_fit_country$DIC[1,])]<-2
+barplot(result_auto_fit_country$DIC[1,],las=3,col=col_min)
+
+#plot the output(fitted rates)
+#best model results
+analyse_output_fn(mcmc_object=result_auto_fit_country$result$best,deaths_combined_array=dxt_array_country,expo_combined_array=Ext_array_country,ages=as.numeric(dimnames(dxt_array_country)[[2]]),years=years)
+#worst model results
+analyse_output_fn(mcmc_object=result_auto_fit_country$result$worst,deaths_combined_array=dxt_array_country,expo_combined_array=Ext_array_country,ages=as.numeric(dimnames(dxt_array_country)[[2]]),years=years)
+
+#focusing on selected years
+#best model results
+analyse_output_fn(mcmc_object=result_auto_fit_country$result$best,deaths_combined_array=dxt_array_country,expo_combined_array=Ext_array_country,ages=as.numeric(dimnames(dxt_array_country)[[2]]),years=c(2000))
+#worst model results
+analyse_output_fn(mcmc_object=result_auto_fit_country$result$worst,deaths_combined_array=dxt_array_country,expo_combined_array=Ext_array_country,ages=as.numeric(dimnames(dxt_array_country)[[2]]),years=c(1960,1981,2000))
+
+#############
+#saving plots
+#############
+
+#uncomment and run if needed
+
+#product data
+#pdf(file="auto_DIC_product_barplot.pdf",width=8,height=5)
+#par(mfrow=c(1,1),mar=c(10,4,4,2))
+#col_min<-rep(1,length(result_auto_fit$DIC));col_min[which.min(result_auto_fit$DIC[1,])]<-2
+#barplot(result_auto_fit$DIC[1,],ylim=c(0,4000),las=3,col=col_min)
+#dev.off()
+
+#pdf(file="auto_DIC_product.pdf",width=8,height=5)
+#analyse_output_fn(mcmc_object=result_auto_fit$result$best,deaths_combined_array=deaths_combined_array,expo_combined_array=expo_combined_array,ages=unique(data_subset_ACI$Age),years=unique(data_subset_ACI$Year))
+#dev.off()
+
+#pdf(file="auto_DIC_product_selectedyears.pdf",width=8,height=5)
+#analyse_output_fn(mcmc_object=result_auto_fit$result$best,deaths_combined_array=deaths_combined_array,expo_combined_array=expo_combined_array,ages=unique(data_subset_ACI$Age),years=c(2016,2019,2020))
+#dev.off()
+
+#sex data
+#pdf(file="auto_DIC_sex_barplot.pdf",width=8,height=5)
+#par(mfrow=c(1,1),mar=c(10,4,4,2))
+#col_min<-rep(1,length(result_auto_fit_sex$DIC));col_min[which.min(result_auto_fit_sex$DIC[1,])]<-2
+#barplot(result_auto_fit_sex$DIC[1,],las=3,col=col_min,ylim=c(0,600000))
+#dev.off()
+
+#pdf(file="auto_DIC_sex.pdf",width=8,height=5)
+#analyse_output_fn(mcmc_object=result_auto_fit_sex$result$best,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=as.numeric(dimnames(dxt_array_sex)[[2]]),years=c(1961,1981,2001))
+#dev.off()
+
+#pdf(file="auto_DIC_sex_y1961.pdf",width=8,height=5)
+#analyse_output_fn(mcmc_object=result_auto_fit_sex$result$best,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=as.numeric(dimnames(dxt_array_sex)[[2]]),years=c(1961))
+#dev.off()
+
+#pdf(file="auto_DIC_sex_y1981.pdf",width=8,height=5)
+#analyse_output_fn(mcmc_object=result_auto_fit_sex$result$best,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=as.numeric(dimnames(dxt_array_sex)[[2]]),years=c(1981))
+#dev.off()
+
+#pdf(file="auto_DIC_sex_y2001.pdf",width=8,height=5)
+#analyse_output_fn(mcmc_object=result_auto_fit_sex$result$best,deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=as.numeric(dimnames(dxt_array_sex)[[2]]),years=c(2001))
+#dev.off()
+
+#country data
+#pdf(file="auto_DIC_country_barplot.pdf",width=8,height=5)
+#par(mfrow=c(1,1),mar=c(10,4,4,2))
+#col_min<-rep(1,length(result_auto_fit_country$DIC));col_min[which.min(result_auto_fit_country$DIC[1,])]<-2
+#barplot(result_auto_fit_country$DIC[1,],las=3,col=col_min,ylim=c(0,1000000))
+#dev.off()
+
+#pdf(file="auto_DIC_country.pdf",width=8,height=5)
+#analyse_output_fn(mcmc_object=result_auto_fit_country$result$best,deaths_combined_array=dxt_array_country,expo_combined_array=Ext_array_country,ages=as.numeric(dimnames(dxt_array_country)[[2]]),years=c(1951,1971,1991))
+#dev.off()
+
+#pdf(file="auto_DIC_country_y1951.pdf",width=8,height=5)
+#analyse_output_fn(mcmc_object=result_auto_fit_country$result$best,deaths_combined_array=dxt_array_country,expo_combined_array=Ext_array_country,ages=as.numeric(dimnames(dxt_array_country)[[2]]),years=c(1951))
+#dev.off()
+
+#pdf(file="auto_DIC_country_y1971.pdf",width=8,height=5)
+#analyse_output_fn(mcmc_object=result_auto_fit_country$result$best,deaths_combined_array=dxt_array_country,expo_combined_array=Ext_array_country,ages=as.numeric(dimnames(dxt_array_country)[[2]]),years=c(1971))
+#dev.off()
+
+#pdf(file="auto_DIC_country_y1991.pdf",width=8,height=5)
+#analyse_output_fn(mcmc_object=result_auto_fit_country$result$best,deaths_combined_array=dxt_array_country,expo_combined_array=Ext_array_country,ages=as.numeric(dimnames(dxt_array_country)[[2]]),years=c(1991))
+#dev.off()
 
 
-#analyse_output_fn(mcmc_object=fit_logit_LC_M1U_jags[[1]],deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=ages,years=years)
-#analyse_output_fn(mcmc_object=fit_logit_LC_M1U_jags[[1]],deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=ages,years=c(1971,1991,2021))
-
-#analyse_output_fn(mcmc_object=fit_logit_LC_MLiLee_jags[[1]],deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=ages,years=years)
-#analyse_output_fn(mcmc_object=fit_logit_LC_MLiLee_jags[[1]],deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=ages,years=c(1971,1991,2021))
-
-#analyse_output_fn(mcmc_object=fit_logit_LC_all_separately_jags[[1]],deaths_combined_array=dxt_array_sex,expo_combined_array=Ext_array_sex,ages=ages,years=c(1971,1991,2021))
 
