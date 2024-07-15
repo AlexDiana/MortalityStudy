@@ -1,0 +1,25 @@
+model{
+  for (i in 1:p){
+    for (j in 1:A){
+      for (k in 1:T){
+        dxt[i,j,k]~dbin(q[i,j,k],ext[i,j,k])
+        logit(q[i,j,k])<-kappa1[i,k]+kappa2[i,k]*(x[j]-xbar)
+      }
+    }
+  }
+
+
+  for (i in 1:p){
+
+    kappa1[i,1:T]~dmnorm(prior_mean_kappa1,prior_prec_kappa1)
+
+  }
+
+
+  for (i in 1:p){
+
+    kappa2[i,1:T]~dmnorm(prior_mean_kappa2,prior_prec_kappa2)
+
+  }
+
+}
