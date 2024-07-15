@@ -75,13 +75,15 @@ simulateData <- function(X, Y, E,
   
   {
     bx <- seq(.4, 0.0, length.out = X) + rnorm(X, sd = .1)
-    bx <- bx / (-bx[1])
     if(choice2 == 2){
       bx <- bx - mean(bx)  
     }
+    bx <- bx / (-bx[1])
     
     k2t <- seq(-11, -6, length.out = Y)
-    k2t <- k2t - mean(k2t)
+    if(choice1 == 1 | (choice3 == 2)){
+      k2t <- k2t - mean(k2t)  
+    }
     k2t <- k2t / 5
     
     if(choice3 == 2){
@@ -110,14 +112,18 @@ simulateData <- function(X, Y, E,
       
     } else if(choice2 == 2){
       
-      gtx_m2 <- rnorm(X + Y - 3)
+      gtx_m1 <- rnorm(X + Y - 2)
       
-      gtx <- c(0, gtx_m2, 0)
+      ik <- create_ik(X, Y)
+      
+      gtx_m1 <- gtx_m1 - sum(ik[-1] * gtx_m1) / (X*Y - 1)
+      
+      gtx <- c(0, gtx_m1)
       
       term4 <- createTerm4(gtx, X, Y)
-      sumParams <- sum(term4)
+      # (sumParams <- sum(term4))
       
-      gtx[length(gtx)] <- - sumParams
+      # gtx[length(gtx)] <- - sumParams
       
     }
     
@@ -224,47 +230,36 @@ reparamK1tK2txBx <- function(k1t, k2t, bx){
        "k2t_tilde" = k2t_tilde)
 }
 
-mapModels <- function(delta1, delta2, delta3, delta4,
-                      delta1_new, delta2_new, 
-                      delta3_new, delta4_new,
-                      param1, param2, param3, param4){
+diagnosticsCheck <- function(params_output){
   
-    if(delta2 == 2 & delta2_new == 1 & 
-       delta3 == 3 & delta3_new == 3){
-      
-      k1t <- param2$k1t
-      k2t <- param3$k2t
-      bx <- param3$bx
-      
-      list_params <- convertK1tK2txBxtoK2tBx(k1t, k2t, bx)
-      k2t_new <- list_params$k2t_tilde
-      bx_new <- list_params$bx_tilde
-      
-      return(
-        list("k2t" = k2t_new,
-             "bx" = bx_new)
-      )  
-      
-    } else if (delta2 == 1 & delta2_new == 2 & 
-               delta3 == 3 & delta3_new == 3){
-      
-      k2t <- param3$k2t
-      bx <- param3$bx
-      
-      list_params <- convertK2tBxtoK1tK2txBx(k2t, bx)
-      k1t_new <- list_params$k1t_tilde
-      k2t_new <- list_params$k2t_tilde
-      bx_new <- list_params$bx_tilde
-      
-      return(
-        list(
-          "k1t" = k1t_new,
-          "k2t" = k2t_new,
-          "bx" = bx_new)
-      )  
-      
-    }
+  apply(params_output, c(2,3), function(x){
     
+    if(any(!is.na(x))){
+      x <- x[!is.na(x)]
+      x_current <- mcmc(x)
+      return(as.numeric(effectiveSize(x_current)))
+      
+    } else {
+      return(NA)
+    }
+  })
+  
+}
+
+loglik <- function(d, E, m){
+  
+  mxt <- m + log(E)
+  
+  sum(d * mxt - exp(mxt))
+  
+}
+
+loglik_m <- function(d, E, term1, term2, term3, term4){
+  
+  mxt <- term1 + term2 + term3 + term4 + log(E)
+  
+  sum(d * mxt - exp(mxt))
+  
 }
 
 # UPDATE TERM 1 ------------
@@ -472,6 +467,55 @@ derl2der2a <- function(a, cx){
   
 }
 
+computeTerm1 <- function(param1, delta1, ...){
+  
+  if(delta1 == 1){
+    
+    term1 <- matrix(param1$ax, X, Y, byrow = F)
+    
+  } else {
+    
+    term1 <- matrix(param1$ab[1] + param1$ab[2] * c2x, X, Y, byrow = F)
+    
+  }
+  
+  return(term1)
+  
+}
+
+updateTerm1 <- function(param, delta1, term1, term2, term3, term4){
+  
+  term234 <- computeTerms(idx = 1, term1, term2, term3, term4)
+  
+  if(delta1 == 1){ # unconstrained model
+    
+    ax <- updateAX(param$ax, d, E, term234)  
+    term1 <- matrix(ax, X, Y, byrow = F)
+    
+    param <- list("ax" = ax)
+    
+    return(
+      list("param" = param,
+           "term" = term1)
+    )
+    
+  } else if(delta1 == 2){ # linear model
+    
+    list_ab <- updateABX(param$ab, c2x, d, E, term234)
+    ab <- list_ab$ab
+    term1 <- matrix(list_ab$term1, X, Y, byrow = F)
+     
+    param <- list("ab" = ab)
+    
+    return(
+      list("param" = param,
+           "term" = term1)
+    )
+    
+  }
+  
+}
+
 # UPDATE TERM 2 -----
 
 buildProposalK1t <- function(d, E, cxt){
@@ -606,6 +650,42 @@ sampleMVNconstraint_k <- function(mu, Sigma){
   x
 }
   
+computeTerm2 <- function(param2, delta2, ...){
+  
+  if(delta2 == 1){
+    term2 <- matrix(0, X, Y, byrow = F)  
+  } else if(delta2 == 2){
+    term2 <- matrix(param2$k1t, X, Y, byrow = T)  
+  }
+  
+  term2
+  
+}
+
+updateTerm2 <- function(param, delta2, term1, term2, term3, term4){
+  
+  if(delta2 == 2){
+    
+    term134 <- computeTerms(idx = 2, term1, term2, term3, term4)
+    
+    k1t <- updateK1T(param$k1t, d, E, term134)
+    term2 <- matrix(k1t, X, Y, byrow = T)
+    
+    param <- list("k1t" = k1t)
+    
+  } else {
+   
+    param <- NULL
+     
+  }
+  
+  return(
+    list("param" = param,
+         "term" = term2)
+  )
+  
+}
+
 # UPDATE TERM 3 -------
 
 # loglik_term3_k2t <- function(ages, d, E, cxt){
@@ -1084,13 +1164,136 @@ update_bxk2t <- function(bx, k2t, d, E, cxt){
     
 }
 
+loglik_term3_bxk2t_m1_delta2u1 <- function(d, E, cxt){
+  
+  function(param){
+    
+    bxm1X <- param[1:(X-1)]
+    k2tm1 <- param[X - 1 + 1:(Y-1)]
+    
+    bx <- c(-1, bxm1X)
+    k2t <- c(k2tm1, - sum(k2tm1))
+    
+    k2tbx <- matrix(k2t, X, Y, byrow = T) * matrix(bx, X, Y, byrow = F)
+    
+    loglik_term1(d, E, k2tbx, cxt)
+    
+  }
+  
+}
+
+gr_loglik_term3_bxk2t_m1_delta2u1 <- function(d, E, cxt){
+  
+  function(param){
+    
+    bxm1X <- param[1:(X-1)]
+    k2tm1 <- param[X-1 + 1:(Y-1)]
+    
+    bx <- c(-1, bxm1X)
+    k2t <- c(k2tm1, - sum(k2tm1))
+    
+    k2t_mat <- matrix(k2t, X, Y, byrow = T)
+    bx_mat <- matrix(bx, X, Y, byrow = F)
+    
+    k2tbx <- k2t_mat * bx_mat
+    
+    cxtlogE <- cxt + log(E)
+    
+    lambda_xt <- cxtlogE + k2t_mat * bx_mat
+    
+    term1_bx <- d * k2t_mat - exp(lambda_xt) * k2t_mat
+    
+    gr_bx <- apply(term1_bx[2:X,], 1, sum)
+    
+    term1_kt <- d * bx_mat - exp(lambda_xt) * bx_mat
+    
+    term2_kt <- (- d[,Y] * bx_mat[,Y] ) - exp(lambda_xt[,Y]) * (- bx_mat[,Y])
+    
+    gr_kt <- apply(term1_kt[,1:(Y-1)], 2, sum) + sum(term2_kt)
+    
+    - c(gr_bx, gr_kt)
+    
+  }
+  
+}
+
+findProposalBXk2t_delta2u1 <- function(d, E, cxt, c2x){
+  
+  loglik_bxk2t_current <- loglik_term3_bxk2t_m1_delta2u1(d, E, cxt)
+  gr_loglik_bxk2t_current <- gr_loglik_term3_bxk2t_m1_delta2u1(d, E, cxt)
+  
+  startVal_b <- c2x
+  
+  # find maximum
+  laplace_fit <- optim(
+    par = c(startVal_b[-1], rep(0, Y - 1)),
+    # par = k2t,
+    fn = loglik_bxk2t_current,
+    method = c("BFGS"),
+    gr = gr_loglik_bxk2t_current,
+    hessian = T
+  )
+  
+  bxl2t_star <- laplace_fit$par
+  Sigma_star <- solve(laplace_fit$hessian + diag(1, nrow = length(bxl2t_star)))
+  
+  # Sigma_star <- Sigma_star + diag(.001, nrow = length(bxl2t_star))
+  # Sigma_star <- 2 * Sigma_star
+  
+  list("bxl2t_star" = bxl2t_star,
+       "Sigma_star" = Sigma_star)
+  
+}
+
+update_bxk2t_delta2u1 <- function(bx, k2t, d, E, cxt){
+  
+  list_proposal <- findProposalBXk2t(d, E, cxt, c2x)
+  bxl2t_star <- list_proposal$bxl2t_star
+  Sigma_bxl2t_star <- list_proposal$Sigma_star
+  
+  k2tbx_proposed_m1 <- mvrnorm(n = 1,
+                               bxl2t_star,
+                               Sigma_bxl2t_star)
+  
+  bx_m1X <- k2tbx_proposed_m1[1:(X-2)]
+  k2t_mY <- k2tbx_proposed_m1[X-2 + 1:(Y-1)]
+  
+  bx_proposed <- c(-1, bx_m1X, - sum(bx_m1X) + 1)
+  k2t_proposed <- c(k2t_mY, - sum(k2t_mY))
+
+  loglik_proposal <- - loglik_term3(k2t_proposed, bx_proposed, d, E, cxt)
+  loglik_current <- - loglik_term3(k2t, bx, d, E, cxt)
+  
+  k2tbx_current_m1 <- c(bx[-c(1,X)], k2t[-Y])
+  
+  logproposal_proposal <- dmvnorm(k2tbx_proposed_m1, bxl2t_star, Sigma_bxl2t_star, log = T)
+  logproposal_current <- dmvnorm(k2tbx_current_m1, bxl2t_star, Sigma_bxl2t_star, log = T)
+  
+  mh_ratio <- exp(
+    loglik_proposal - loglik_current + 
+      logproposal_current - logproposal_proposal
+  )
+  
+  if(runif(1) < mh_ratio){
+    
+    bx <- bx_proposed
+    k2t <- k2t_proposed
+    
+  }
+  
+  term3 <- matrix(k2t, X, Y, byrow = T) * matrix(bx, X, Y, byrow = F)
+  
+  list("bx" = bx,
+       "k2t" = k2t,
+       "term3" = term3)
+    
+}
+
 # doing two steps
 
 # for bx
 
-loglik_term3_bx_k2t_m2 <- function(k2t, d, E, cxt){
-  
-  sd_bx <- 2
+loglik_term3_bx_k2t_m2 <- function(k2t, d, E, cxt, sd_bx){
   
   function(param){
     
@@ -1110,9 +1313,7 @@ loglik_term3_bx_k2t_m2 <- function(k2t, d, E, cxt){
   
 }
 
-gr_loglik_term3_bx_k2t_m2 <- function(k2t, d, E, cxt){
-  
-  sd_bx <- 2
+gr_loglik_term3_bx_k2t_m2 <- function(k2t, d, E, cxt, sd_bx){
   
   function(param){
     
@@ -1140,10 +1341,10 @@ gr_loglik_term3_bx_k2t_m2 <- function(k2t, d, E, cxt){
   
 }
 
-findProposalBX_given_k2t_m2 <- function(bx, k2t, d, E, cxt, c2x){
+findProposalBX_given_k2t_m2 <- function(bx, k2t, d, E, cxt, c2x, sd_bx){
   
-  loglik_bx_k2t_current <- loglik_term3_bx_k2t_m2(k2t, d, E, cxt)
-  gr_loglik_bx_k2t_current <- gr_loglik_term3_bx_k2t_m2(k2t, d, E, cxt)
+  loglik_bx_k2t_current <- loglik_term3_bx_k2t_m2(k2t, d, E, cxt, sd_bx)
+  gr_loglik_bx_k2t_current <- gr_loglik_term3_bx_k2t_m2(k2t, d, E, cxt, sd_bx)
   
   startVal_b <- c2x
   
@@ -1152,7 +1353,7 @@ findProposalBX_given_k2t_m2 <- function(bx, k2t, d, E, cxt, c2x){
     par = bx[-c(1,X)],
     # par = rep(0, X - 2),
     fn = loglik_bx_k2t_current,
-    method = c("BFGS"),
+    method = c("CG"),
     # gr = gr_loglik_bx_k2t_current,
     hessian = T
   )
@@ -1168,9 +1369,7 @@ findProposalBX_given_k2t_m2 <- function(bx, k2t, d, E, cxt, c2x){
   
 }
 
-loglik_term3_bx_k2t_m1 <- function(k2t, d, E, cxt){
-  
-  sd_bx <- 2
+loglik_term3_bx_k2t_m1 <- function(k2t, d, E, cxt, sd_bx){
   
   function(param){
     
@@ -1190,9 +1389,7 @@ loglik_term3_bx_k2t_m1 <- function(k2t, d, E, cxt){
   
 }
 
-gr_loglik_term3_bx_k2t_m1 <- function(k2t, d, E, cxt){
-  
-  sd_bx <- 2
+gr_loglik_term3_bx_k2t_m1 <- function(k2t, d, E, cxt, sd_bx){
   
   function(param){
     
@@ -1219,10 +1416,10 @@ gr_loglik_term3_bx_k2t_m1 <- function(k2t, d, E, cxt){
   
 }
 
-findProposalBX_given_k2t_m1 <- function(bx, k2t, d, E, cxt, c2x){
+findProposalBX_given_k2t_m1 <- function(bx, k2t, d, E, cxt, c2x, sd_bx){
   
-  loglik_bx_k2t_current <- loglik_term3_bx_k2t_m1(k2t, d, E, cxt)
-  gr_loglik_bx_k2t_current <- gr_loglik_term3_bx_k2t_m1(k2t, d, E, cxt)
+  loglik_bx_k2t_current <- loglik_term3_bx_k2t_m1(k2t, d, E, cxt, sd_bx)
+  gr_loglik_bx_k2t_current <- gr_loglik_term3_bx_k2t_m1(k2t, d, E, cxt, sd_bx)
   
   startVal_b <- c2x
   
@@ -1231,7 +1428,7 @@ findProposalBX_given_k2t_m1 <- function(bx, k2t, d, E, cxt, c2x){
     par = bx[-1],
     # par = rep(0, X - 2),
     fn = loglik_bx_k2t_current,
-    method = c("BFGS"),
+    method = c("CG"),
     gr = gr_loglik_bx_k2t_current,
     hessian = T
   )
@@ -1298,14 +1495,12 @@ findProposalk2t_given_bx <- function(k2t, bx, d, E, cxt){
   loglik_k2t_bx_current <- loglik_term3_k2t_bx_m1(bx, d, E, cxt)
   gr_loglik_k2t_bx_current <- gr_loglik_term3_k2t_bx_m1(bx, d, E, cxt)
   
-  # startVal_b <- c2x
-  
   # find maximum
   laplace_fit <- optim(
     par = k2t[-Y],
     # par = k2t,
     fn = loglik_k2t_bx_current,
-    method = c("BFGS"),
+    method = c("CG"),
     gr = gr_loglik_k2t_bx_current,
     hessian = T
   )
@@ -1321,55 +1516,13 @@ findProposalk2t_given_bx <- function(k2t, bx, d, E, cxt){
   
 }
 
-update_bxk2t_twosteps <- function(bx, k2t, d, E, cxt, delta2){
-  
-  sd_bx <- 2
-  
-  # update kt
-  
-  list_proposal <- findProposalk2t_given_bx(k2t, bx, d, E, cxt)
-  kt_star <- list_proposal$bxl2t_star
-  Sigma_kt_star <- list_proposal$Sigma_star
-  
-  Sigma_kt_star <- Sigma_kt_star
-  
-  kt_proposed_m1 <- mrt2(kt_star,
-                         Sigma_kt_star,
-                          df = 3)
-  # kt_proposed_m1 <- mvrnorm(n = 1,
-  #                           kt_star,
-  #                           Sigma_kt_star)
-  
-  kt_proposed <- c(kt_proposed_m1, - sum(kt_proposed_m1))
-  
-  loglik_proposal <- - loglik_term3(kt_proposed, bx, d, E, cxt)
-  loglik_current <- - loglik_term3(k2t, bx, d, E, cxt)
-  
-  logproposal_proposal <- dmt_cpp(kt_proposed_m1, nu = 3, kt_star, 
-                                  Sigma_kt_star, returnLog = T)
-  logproposal_current <- dmt_cpp(k2t[-Y], nu = 3, kt_star, 
-                                 Sigma_kt_star, returnLog = T)
-  # logproposal_proposal <- dmvnorm(kt_proposed_m1, kt_star, Sigma_kt_star, log = T)
-  # logproposal_current <- dmvnorm(k2t[-Y], kt_star, Sigma_kt_star, log = T)
-  
-  mh_ratio <- exp(
-    loglik_proposal - loglik_current + 
-      logproposal_current - logproposal_proposal
-  )
-  
-  if(runif(1) < mh_ratio){
-    
-    k2t <- kt_proposed
-    
-  }
-  
-  # update bx
+update_bx_given_k2t_joint <- function(bx, k2t, d, E, cxt, delta2, sd_bx){
   
   if(!(all(k2t == 0))){ # no point in updating bx if k2t is 0
     
     if(delta2 == 1){
       
-      list_proposal <- findProposalBX_given_k2t_m1(bx, k2t, d, E, cxt, c2x)
+      list_proposal <- findProposalBX_given_k2t_m1(bx, k2t, d, E, cxt, c2x, sd_bx)
       bx_star <- list_proposal$bxl2t_star
       Sigma_bx_star <- list_proposal$Sigma_star
       
@@ -1389,7 +1542,7 @@ update_bxk2t_twosteps <- function(bx, k2t, d, E, cxt, delta2){
       
     } else if(delta2 == 2){
       
-      list_proposal <- findProposalBX_given_k2t_m2(bx, k2t, d, E, cxt, c2x)
+      list_proposal <- findProposalBX_given_k2t_m2(bx, k2t, d, E, cxt, c2x, sd_bx)
       bx_star <- list_proposal$bxl2t_star
       Sigma_bx_star <- list_proposal$Sigma_star
       
@@ -1426,12 +1579,215 @@ update_bxk2t_twosteps <- function(bx, k2t, d, E, cxt, delta2){
     
   }
   
+  bx
+}
+
+loglik_term3_x <- function(x, d, E, bx_x, k2t, cxt){
+  
+  mxt_x <- k2t * bx_x + cxt[x,] + log(E[x,])
+  
+  sum(d[x,] * mxt_x - exp(mxt_x))
+  
+}
+
+update_bx_given_k2t <- function(bx, k2t, d, E, cxt, delta2, sd_bx){
+  
+  if(!(all(k2t == 0))){ # no point in updating bx if k2t is 0
+    
+    if(delta2 == 1){ # no constraint that sum bx = 0
+      
+      list_proposal <- findProposalBX_given_k2t_m1(bx, k2t, d, E, cxt, c2x, sd_bx)
+      bx_star <- list_proposal$bxl2t_star
+      Sigma_bx_star <- list_proposal$Sigma_star
+      
+      Sigma_bx_star <- Sigma_bx_star
+      
+      for (x in 2:X) {
+        
+        bx_proposed_x <- rt2(1, bx_star[x-1], 
+                             sqrt(Sigma_bx_star[x-1,x-1]), df = 3)
+        
+        loglik_proposal <- loglik_term3_x(x, d, E, bx_proposed_x, k2t, cxt)
+        loglik_current <- loglik_term3_x(x, d, E, bx[x], k2t, cxt)
+        
+        logproposal_proposal <- log(dt2(bx_proposed_x, bx_star, 
+                                    sqrt(Sigma_bx_star[x-1,x-1]), df = 3))
+        logproposal_current <- log(dt2(bx[x], bx_star, 
+                                   sqrt(Sigma_bx_star[x-1,x-1]), df = 3))
+        
+        logprior_proposal <- dnorm(bx_proposed_x, sd = sd_bx, log = T)
+        logprior_current <- dnorm(bx[x], sd = sd_bx, log = T)
+        
+        mh_ratio <- exp(
+          loglik_proposal - loglik_current + 
+            logprior_proposal - logprior_current + 
+            logprior_current - logprior_proposal
+        )
+        
+        if(runif(1) < mh_ratio){
+          bx[x] <- bx_proposed_x
+        }
+        
+      }
+      
+    } else if(delta2 == 2){
+      
+      list_proposal <- findProposalBX_given_k2t_m2(bx, k2t, d, E, cxt, c2x, sd_bx)
+      bx_star <- list_proposal$bxl2t_star
+      Sigma_bx_star <- list_proposal$Sigma_star
+      
+      Sigma_bx_star <- Sigma_bx_star
+      
+      bx_proposed_m2 <- mvrnorm(n = 1,
+                                bx_star,
+                                Sigma_bx_star)
+      
+      bx_proposed <- c(-1, bx_proposed_m2, - sum(bx_proposed_m2) + 1)
+      
+      loglik_proposal <- - loglik_term3(k2t, bx_proposed, d, E, cxt)
+      loglik_current <- - loglik_term3(k2t, bx, d, E, cxt)
+      
+      logproposal_proposal <- dmvnorm(bx_proposed_m2, bx_star, Sigma_bx_star, log = T)
+      logproposal_current <- dmvnorm(bx[-c(1,X)], bx_star, Sigma_bx_star, log = T)
+      
+      logprior_proposal <- sum(dnorm(bx_proposed, sd = sd_bx, log = T))
+      logprior_current <- sum(dnorm(bx, sd = sd_bx, log = T))
+      
+      mh_ratio <- exp(
+        loglik_proposal - loglik_current + 
+          logprior_proposal - logprior_current + 
+          logproposal_current - logproposal_proposal
+      )
+      
+      if(runif(1) < mh_ratio){
+        
+        bx <- bx_proposed
+        
+      }
+      
+    }
+    
+  }
+  
+  bx
+}
+
+update_bxk2t_twosteps <- function(bx, k2t, d, E, cxt, delta1, delta2, sd_bx){
+  
+  # update kt
+  
+  list_proposal <- findProposalk2t_given_bx(k2t, bx, d, E, cxt)
+  kt_star <- list_proposal$bxl2t_star
+  Sigma_kt_star <- list_proposal$Sigma_star
+  
+  Sigma_kt_star <- Sigma_kt_star
+  
+  if(delta1 == 2){
+   
+    kt_proposed <- mrt2(kt_star,
+                           Sigma_kt_star,
+                           df = 3)
+    
+    logproposal_proposal <- dmt_cpp(kt_proposed, nu = 3, kt_star, 
+                                    Sigma_kt_star, returnLog = T)
+    logproposal_current <- dmt_cpp(k2t, nu = 3, kt_star, 
+                                   Sigma_kt_star, returnLog = T)
+    
+  } else if (delta1 == 1){
+    
+    kt_proposed_m1 <- mrt2(kt_star,
+                           Sigma_kt_star,
+                           df = 3)
+    
+    kt_proposed <- c(kt_proposed_m1, - sum(kt_proposed_m1))
+    
+    logproposal_proposal <- dmt_cpp(kt_proposed_m1, nu = 3, kt_star, 
+                                    Sigma_kt_star, returnLog = T)
+    logproposal_current <- dmt_cpp(k2t[-Y], nu = 3, kt_star, 
+                                   Sigma_kt_star, returnLog = T)
+    
+  }
+  
+  loglik_proposal <- - loglik_term3(kt_proposed, bx, d, E, cxt)
+  loglik_current <- - loglik_term3(k2t, bx, d, E, cxt)
+  
+  # logproposal_proposal <- dmvnorm(kt_proposed_m1, kt_star, Sigma_kt_star, log = T)
+  # logproposal_current <- dmvnorm(k2t[-Y], kt_star, Sigma_kt_star, log = T)
+  
+  mh_ratio <- exp(
+    loglik_proposal - loglik_current + 
+      logproposal_current - logproposal_proposal
+  )
+  
+  if(runif(1) < mh_ratio){
+    
+    k2t <- kt_proposed
+    
+  }
+  
+  # update bx
+  
+  bx <- update_bx_given_k2t(bx, k2t, d, E, cxt, delta2, sd_bx)
+  
   term3 <- matrix(k2t, X, Y, byrow = T) * matrix(bx, X, Y, byrow = F)
   
   list("bx" = bx,
        "k2t" = k2t,
        "term3" = term3)
     
+}
+
+computeTerm3 <- function(param3, delta3, ...){
+  
+  if(delta3 == 1){
+    term3 <- matrix(0, X, Y, byrow = F)  
+  } else if(delta3 == 2){
+    term3 <- matrix(param3$k2t, X, Y, byrow = T) * c2x   
+  } else if(delta3 == 3){
+    term3 <- 
+      matrix(param3$k2t, X, Y, byrow = T) * 
+      matrix(param3$bx, X, Y, byrow = F)   
+  }
+  
+  term3
+}
+
+updateTerm3 <- function(param, delta3, delta1, delta2,
+                        d, E, 
+                        term1, term2, term3, term4, c2x, sd_bx){
+  
+  term124 <- computeTerms(idx = 3, term1, term2, term3, term4)
+  
+  if(delta3 == 2){ # varying line 
+    
+    list_k2t <- update_k2t(param$k2t, d, E, term124, c2x)
+    k2t <- list_k2t$k2t
+    term3 <- list_k2t$term3
+    
+    param <- list("k2t" = k2t)
+    
+  } else if(delta3 == 3){ # lee carter
+    
+    list_bxk2t <- update_bxk2t_twosteps(param$bx, param$k2t, d, E, term124, 
+                                        delta1, delta2, sd_bx)
+    # list_bxk2t <- update_bxk2t(bx, k2t, d, E, term124)
+    bx <- list_bxk2t$bx
+    k2t <- list_bxk2t$k2t
+    term3 <- list_bxk2t$term3
+    
+    param <- list("bx" = bx,
+                  "k2t" = k2t)
+    
+  } else {
+    
+    param <- NULL
+    
+  }
+  
+  list_return <- list("param" = param,
+                      "term" = term3)
+  
+  return(list_return)
 }
 
 # UPDATE TERM 4 -------
@@ -1516,9 +1872,11 @@ buildProposalGtx <- function(d, E, cxt){
 
 loglik_term4_gtx_m1 <- function(d, E, cxt){
   
+  ik <- create_ik(X,Y)
+  
   function(param){
     
-    gtx <- c(param, - sum(param))
+    gtx <- c(param, - sum(ik[-length(ik)] * param))
     
     gtx_mat <- createTerm4(gtx, X, Y)
     
@@ -1704,6 +2062,642 @@ updateGTX_kt <- function(gtx, d, E, cxt) {
   list("gtx" = gtx,
        "term4" = term4)
   
+}
+
+computeTerm4 <- function(param4, delta4){
+  
+  if(delta4 == 1){
+    term4 <- matrix(0, X, Y, byrow = F)  
+  } else if(delta4 == 2){
+    term4 <- createTerm4(param4$gtx, X, Y)
+  }
+  
+  term4
+}
+
+updateTerm4 <- function(param4, delta4, delta2,
+                        d, E,
+                        term1, term2, term3, term4){
+  
+  term123 <- computeTerms(idx = 4, term1, term2, term3, term4)
+  
+  if(delta4 == 2){ # cohort effect present
+    
+    if(delta2 == 1){ 
+      
+      list_gtx <- updateGTX(param4$gtx, d, E, term123)
+      
+    } else if(delta2 == 2){
+      # if the additive effect on kt is present we 
+      # need an additional constraint
+      list_gtx <- updateGTX_kt(param4$gtx, d, E, term123)
+      
+    }
+    
+    param <- list("gtx" = list_gtx$gtx)
+    term4 <- list_gtx$term4
+    
+  } else {
+    
+    param <- NULL
+    
+  }
+  
+  list("param" = param,
+       "term" = term4)
+}
+
+# MOVING FUNCTION -----
+
+proposeNewDelta <- function(idx_delta, delta){
+  
+  if(idx_delta == 1){
+    delta1_star <- ifelse(delta[1] == 1, 2, 1)
+    delta_star <- c(delta1_star, delta2, delta3, delta4)
+  } else if(idx_delta == 2){
+    delta2_star <- ifelse(delta[2] == 1, 2, 1)
+    delta_star <- c(delta1, delta2_star, delta3, delta4)
+  } else if(idx_delta == 3){
+    if(delta[3] == 1){
+      delta3_star <- 2
+    } else if(delta[3] == 2){
+      delta3_star <- sample(c(1,3), 1)
+    } else if(delta[3] == 3){
+      delta3_star <- 2
+    }
+    delta_star <- c(delta1, delta2, delta3_star, delta4)
+  } else if(idx_delta == 4){
+    delta4_star <- ifelse(delta[4] == 1, 2, 1)
+    delta_star <- c(delta1, delta2, delta3, delta4_star)
+  } 
+  
+  delta_star
+}
+
+mapModels <- function(delta, delta_star,
+                      param1, param2, param3, param4,
+                      ...){
+  
+  # changing the first term
+  if(delta[1] != delta_star[1]){
+    
+    # in theory there is the constraint delta_3 = 3, we ignore for now 
+    
+    if(delta[1] == 1){ # going from unconstrained model to linear
+      
+      ab_tilde <- lm(param1$ax ~ ages)
+      ab_tilde <- as.numeric(ab_tilde$coefficients)
+      
+      return("ab" = ab_tilde)
+       
+    } 
+    
+  }
+  
+  # changing the second term
+  if(delta[2] != delta_star[2]){
+    
+    if(delta[2] == 1){ # adding additive effect
+      
+      if(delta[3] == 3 & delta[4] == 2){
+        
+        
+        
+      } else if(delta[3] == 3 & delta[4] == 1){
+        
+        k2t <- param3$k2t
+        bx <- param3$bx
+        list_params <- convertK2tBxtoK1tK2txBx(k2t, bx)
+        
+        param1 <- list("ax" = ax)
+        param2 <- list("k1t" = list_params$k1t_tilde)
+        param3 <- list("k2t" = list_params$k2t_tilde,
+                       "bx" = list_params$bx_tilde)
+        
+        param_tilde <- list("param1" = param1,
+                            "param2" = param2,
+                            "param3" = param3)
+        
+        return(param_tilde)
+        
+      } else if(delta[3] != 3 & delta[4] == 2){
+        
+        
+        
+      } else { # anything else isn't a problem
+        
+        param1 <- list("ax" = param1$ax)
+        param2 <- list("k1t" = rep(0, Y))
+        param3 <- list("k2t" = param2$k2t_tilde,
+                       "bx" = param3$bx_tilde)
+        
+        param_tilde <- list("param1" = param1,
+                            "param2" = param2,
+                            "param3" = param3)
+        
+        return(param_tilde)
+        
+      } 
+      
+    } else { # removing additive effect
+      
+      if(delta[3] == 3 & delta[4] == 2){
+        
+        
+        
+      } else if(delta[3] == 3 & delta[4] == 1){
+        
+        k1t <- param2$k1t
+        k2t <- param3$k2t
+        bx <- param3$bx
+        list_params <- convertK1tK2txBxtoK2tBx(k1t, k2t, bx)
+        
+        
+        param1 <- list("ax" = ax)
+        param3 <- list("k2t" = list_params$k2t,
+                       "bx" = list_params$bx)
+        
+        param_tilde <- list("param1" = param1,
+                            "param3" = param3)
+        
+        return(param_tilde)
+        
+      } else if(delta[3] != 3 & delta[4] == 2){
+        
+        
+        
+      } else { # anything else isn't a problem
+        
+        
+        
+      } 
+      
+    }
+    
+  }
+  
+  # changing the third term
+  if(delta[3] != delta_star[3]){  
+    
+    param_tilde <- list("param1" = param1,
+                        "param2" = param2,
+                        "param4" = param4)
+    
+    if(delta_star[3] == 1){
+      
+      param3 <- NULL
+      
+    } else if (delta_star[3] == 2){
+      
+      if(delta[3] == 1){
+        
+        param3 <- list("k2t" = rep(0, Y))
+          
+      } else if(delta[3] == 3){
+        
+        param3 <- list("k2t" = param3$k2t)
+        
+      }
+      
+    } else if (delta_star[3] == 3){
+      
+      param3 <- list("k2t" = param3$k2t,
+                     "bx" = rep(0, X))
+      
+    }
+    
+    param_tilde$param3 <- param3
+    
+  }
+
+  # changing the fouth term
+  if(delta[4] != delta_star[4]){
+    
+    param_tilde <- list("param1" = param1,
+                        "param2" = param2,
+                        "param3" = param3)
+    
+    if(delta_star[4] == 2){ # extending the model
+      
+      gtx <- rep(0, X + Y - 1)   
+      
+      param_tilde$param4 <- list("gtx" = gtx)
+      
+    } else if(delta_star[4] == 1){ # reducing the model
+      
+      param_tilde$param4 <- NULL
+      
+    }
+    
+  }
+  
+  {
+    # if(delta2 == 2 & delta2_new == 1 & 
+    #    delta3 == 3 & delta3_new == 3){
+    #   
+    #   k1t <- param2$k1t
+    #   k2t <- param3$k2t
+    #   bx <- param3$bx
+    #   
+    #   list_params <- convertK1tK2txBxtoK2tBx(k1t, k2t, bx)
+    #   k2t_new <- list_params$k2t_tilde
+    #   bx_new <- list_params$bx_tilde
+    #   
+    #   return(
+    #     list("k2t" = k2t_new,
+    #          "bx" = bx_new)
+    #   )  
+    #   
+    # } else if (delta2 == 1 & delta2_new == 2 & 
+    #            delta3 == 3 & delta3_new == 3){
+    #   
+    #   k2t <- param3$k2t
+    #   bx <- param3$bx
+    #   
+    #   list_params <- convertK2tBxtoK1tK2txBx(k2t, bx)
+    #   k1t_new <- list_params$k1t_tilde
+    #   k2t_new <- list_params$k2t_tilde
+    #   bx_new <- list_params$bx_tilde
+    #   
+    #   return(
+    #     list(
+    #       "k1t" = k1t_new,
+    #       "k2t" = k2t_new,
+    #       "bx" = bx_new)
+    #   )  
+    #   
+    # }
+  }
+  
+  return(param_tilde)
+  
+}
+
+isModelBeingExtended <- function(delta, delta_star){
+  
+  delta[1] <- 3 - delta[1]
+  delta_star[1] <- 3 - delta_star[1]
+  
+  isModelExtended <- sum(delta) < sum(delta_star)
+  
+  return(isModelExtended)
+  
+}
+
+# computeMortality <- function(param1, param2, param3, param4, delta){
+#   
+#   if(delta)
+#   
+# }
+
+computemxt <- function(delta, param1, param2, param3, param4, ...){
+  
+  term1 <- computeTerm1(param1, delta[1])
+  term2 <- computeTerm2(param2, delta[2])
+  term3 <- computeTerm3(param3, delta[3])
+  term4 <- computeTerm4(param4, delta[4])
+  
+  term1 + term2 + term3 + term4
+  
+}
+
+proposeNewParams <- function(param, delta, idx_delta, 
+                             d, E){
+  
+  # compute current value of mxt
+  cxt <- computemxt(delta, 
+                    param$param1, 
+                    param$param2, 
+                    param$param3, 
+                    param$param4)
+  
+  if(idx_delta == 1){
+    
+  } else if(idx_delta == 2){
+    
+    list_proposal <- buildProposalK1t_m1(d, E, cxt)
+    km1_star <- list_proposal$km1_star
+    Sigma_km1_star <- list_proposal$Sigma_star
+    
+    k1t_proposed_m1 <- mvrnorm(n = 1,
+                            km1_star,
+                            Sigma_km1_star)
+    k1t_proposed <- c(k1t_proposed_m1, - sum(k1t_proposed_m1))
+    
+    # find proposal for each variable individually and sum
+    logproposal <- dmvnorm(k1t_proposed_m1, km1_star, 
+                           Sigma_km1_star, log = T)
+    
+    param_proposed <- list("param1" = param$param1,
+                           "param2" = list("k1t" = k1t_proposed),
+                           "param3" = param$param3,
+                           "param4" = param$param4)
+    
+    list_return <- list("param" = param_proposed,
+                        "logproposal" = logproposal)
+    
+  } else if(idx_delta == 3){
+    
+  } else if(idx_delta == 4){
+    
+    if(delta[2] == 1){ 
+      # no additive effect on k1t and therefore
+      # no constraint gamma1 = 0
+      
+      list_proposal <- buildProposalGtx_m1(d, E, cxt)
+      gtx_star <- list_proposal$gtx_star
+      Sigma_star <- list_proposal$Sigma_star
+      
+      gtx_proposed_pm1 <- mvrnorm(n = 1, gtx_star, Sigma_star)
+      
+      ik <- create_ik(X, Y)
+      
+      gtx_proposed <- c(gtx_proposed_pm1, 
+                        - sum(ik[-length(ik)] * gtx_proposed_pm1))
+      
+    } else if(delta[2] == 2){ 
+      # additive effect on k1t and therefore
+      # constraint gamma1 = 0
+      
+      list_proposal <- buildProposalGtx_m2(d, E, cxt)
+      gtx_star <- list_proposal$gtx_star
+      Sigma_star <- list_proposal$Sigma_star
+      
+      gtx_proposed_pm1 <- mvrnorm(n = 1, gtx_star, Sigma_star)
+      
+      ik <- create_ik(X, Y)
+      
+      gtx_proposed <- c(0, gtx_proposed_pm1, 
+                        - sum(ik[-c(1,length(ik))] * gtx_proposed_pm1))
+      
+    }
+    
+    logproposal <- dmvnorm(gtx_proposed_pm1, gtx_star, 
+                           Sigma_star, log = T)
+    
+    ik <- create_ik(X, Y)
+    
+    param4 <- list("gtx" = gtx_proposed)
+    
+    param_proposed <- list("param1" = param$param1,
+                           "param2" = param$param2,
+                           "param3" = param$param3,
+                           "param4" = param4)
+    
+    list_return <- list("param" = param_proposed,
+                        "logproposal" = logproposal)
+    
+  }
+  
+  return(list_return)
+  
+}
+
+computeProposalProb <- function(param_prop, param_base,
+                                d, E, idx_delta, delta){
+  
+  if(idx_delta == 1){
+    
+  } else if(idx_delta == 2){
+    
+    # compute current value of mxt
+    cxt <- computemxt(delta, 
+                      param_base$param1, 
+                      param_base$param2, 
+                      param_base$param3, 
+                      param_base$param4)
+    
+    list_proposal <- buildProposalK1t_m1(d, E, cxt)
+    km1_star <- list_proposal$km1_star
+    Sigma_km1_star <- list_proposal$Sigma_star
+    
+    proposedParams <- 
+      param_prop$param2$k1t - 
+      param_base$param2$k1t
+    
+    # find proposal for each variable individually and sum
+    logproposal <- dmvnorm(proposedParams[-Y], km1_star, 
+                           Sigma_km1_star, log = T)
+    
+  } else if(idx_delta == 3){
+    
+  } else if(idx_delta == 4){
+    
+    # compute current value of mxt
+    cxt <- computemxt(delta, 
+                      param_base$param1, 
+                      param_base$param2, 
+                      param_base$param3, 
+                      param_base$param4)
+    
+    proposedParams <- 
+      param_prop$param4$gtx - 
+      param_base$param4$gtx
+    
+    if(delta[2] == 1){ 
+      # no additive effect on k1t and therefore
+      # no constraint gamma1 = 0
+      
+      list_proposal <- buildProposalGtx_m1(d, E, cxt)
+      gtx_star <- list_proposal$gtx_star
+      Sigma_star <- list_proposal$Sigma_star
+      
+      logproposal <- dmvnorm(proposedParams[-c(X+Y-1)], 
+                             gtx_star, 
+                             Sigma_star, log = T)
+      
+      # gtx_proposed_pm1 <- mvrnorm(n = 1, gtx_star, Sigma_star)
+      # 
+      # ik <- create_ik(X, Y)
+      # 
+      # gtx_proposed <- c(gtx_proposed_pm1, 
+      #                   - sum(ik[-length(ik)] * gtx_proposed_pm1))
+      
+    } else if(delta[2] == 2){ 
+      # additive effect on k1t and therefore
+      # constraint gamma1 = 0
+      
+      list_proposal <- buildProposalGtx_m2(d, E, cxt)
+      gtx_star <- list_proposal$gtx_star
+      Sigma_star <- list_proposal$Sigma_star
+      
+      logproposal <- dmvnorm(proposedParams[-c(1,X+Y-1)], 
+                             gtx_star, 
+                             Sigma_star, log = T)
+      
+    }
+    
+    
+  }
+  
+  return(logproposal)
+}
+
+computePrior <- function(param, delta, priorParams){
+  
+  logprior <- 0
+  
+  if(delta[1] == 1){
+    
+    logprior <- logprior + sum(dnorm(
+      param$param1$ax, 0, sd = priorParams$sd_a, log = T
+    ))
+    
+  }
+  
+  if(delta[2] == 2){
+    
+    logprior <- logprior + sum(dnorm(
+      param$param2$k1t, 0, sd = priorParams$sd_k, log = T
+    ))
+    
+  }
+  
+  if(delta[3] != 1){
+    
+    logprior <- logprior + sum(dnorm(
+      param$param3$k2t, 0, sd = priorParams$sd_k, log = T
+    ))
+    
+  }
+  
+  if(delta[3] == 3){
+    
+    logprior <- logprior + sum(dnorm(
+      param$param3$bx, 0, sd = priorParams$sd_k, log = T
+    ))
+    
+  }
+  
+  if(delta[4] == 2){
+    
+    logprior <- logprior + sum(dnorm(
+      param$param4$gtx, 0, sd = priorParams$sd_g, log = T
+    ))
+    
+  }
+  
+  logprior
+}
+
+# param1 <- list("ax" = ax)
+# param2 <- list("k1t" = k1t)
+# param3 <- list("k2t" = k2t,
+               # "bx" = bx)
+# param <- list("param1" = param1)
+
+proposeNewState <- function(idx_delta, delta1, delta2, delta3, delta4, 
+                            term1, term2, term3, term4, 
+                            param, d, E){
+  
+  delta <-  c(delta1, delta2, delta3, delta4)
+  
+  # propose new index
+  delta_star <- proposeNewDelta(idx_delta, delta)
+  
+  # map current params to the new state
+  param_tilde <- mapModels(delta, delta_star, 
+                           param$param1, param$param2, 
+                           param$param3, param$param4)
+  
+  extendingModel <- isModelBeingExtended(delta, delta_star)
+  
+  if(extendingModel){ # proposing a more complex model
+    
+    # propose new params
+    list_proposal <- proposeNewParams(
+      param_tilde, 
+      delta_star,# propose under the extended model
+      idx_delta, d, E)
+    param_star <- list_proposal$param
+    logproposal <- list_proposal$logproposal
+    
+    param_base <- param
+    
+    m_base <- computemxt(delta, 
+                         param$param1, param$param2,
+                         param$param3, param$param4)
+    
+    m_star <- computemxt(delta_star, 
+                         param_star$param1, param_star$param2,
+                         param_star$param3, param_star$param4)
+    
+    logprior_base <- computePrior(param, delta, priorParams)
+    logprior_star <- computePrior(param_star, delta_star, priorParams)
+    
+  } else { # proposing a simpler model
+    
+    param_tilde2 <- mapModels(delta_star, delta, 
+                             param_tilde$param1, param_tilde$param2,
+                             param_tilde$param3, param_tilde$param4)
+    
+    logproposal <- computeProposalProb(
+      param, param_tilde2,
+      d, E, idx_delta, 
+      delta # the extended model is the current model
+    )
+    
+    param_star <- param
+    param_base <- param_tilde
+    
+    m_star <- computemxt(delta, 
+                         param$param1, param$param2,
+                         param$param3, param$param4)
+    
+    m_base <- computemxt(delta_star, 
+                         param_tilde$param1, param_tilde$param2,
+                         param_tilde$param3, param_tilde$param4)
+    
+    logprior_star <- computePrior(param, delta, priorParams)
+    logprior_base <- computePrior(param_base, delta_star, priorParams)
+    
+  }
+  
+  loglik_star <- loglik(d, E, m_star)
+  loglik_base <- loglik(d, E, m_base)
+  
+  mh_ratio <- exp(
+    loglik_star - loglik_base +
+      logprior_star - logprior_base -
+      logproposal
+  )
+  
+  if(!extendingModel){
+    
+    mh_ratio <- 1 / mh_ratio
+    
+  }
+  
+  if(runif(1) < mh_ratio){
+    
+    delta <- delta_star
+    
+    if(extendingModel){
+      
+      param <- param_star
+      
+    } else {
+      
+      param <- param_tilde
+      
+    }
+    
+    term1 <- computeTerm1(param$param1, delta[1])
+    term2 <- computeTerm2(param$param2, delta[2])
+    term3 <- computeTerm3(param$param3, delta[3])
+    term4 <- computeTerm4(param$param4, delta[4])
+    
+  } 
+  
+  list_return <- list(
+    "delta" = delta,
+    "param" = param,
+    "term1" = term1,
+    "term2" = term2,
+    "term3" = term3,
+    "term1" = term4)
+  
+  return(list_return)
 }
 
 # OLD ----------

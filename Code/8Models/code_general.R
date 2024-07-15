@@ -34,7 +34,7 @@ c2x <- (ages - mean(ages)) / (- ages[1] + mean(ages))
 # model choices
 {
   choice1 <- 1 # 1 unconstrained, 2 line
-  choice2 <- 1 # 1 not additive , 2 additive
+  choice2 <- 2 # 1 not additive , 2 additive
   choice3 <- 3 # 1 no effect, 2 varying line, 3 lee carter
   choice4 <- 1 # 1 no cohort effect, 2 cohort effect
 }
@@ -80,8 +80,8 @@ years <- as.numeric(dimnames(d)[[2]])
 
 # MCMC -----
 
-nburn <- 1500
-niter <- 1500
+nburn <- 3000
+niter <- 3000
 
 trueStartingVal <- F
 
@@ -93,14 +93,13 @@ trueStartingVal <- F
   # true
   if(trueStartingVal) {
     
-    term1 <- list_d$term1
-    term2 <- list_d$term2
-    term3 <- list_d$term3
-    term4 <- list_d$term4
-    
+    term1 <- term1
     param1 <- list_d$param1
+    term2 <- term2
     param2 <- list_d$param2
+    term3 <- term3
     param3 <- list_d$param3
+    term4 <- term4
     param4 <- list_d$param4
     
     delta1 <- choice1
@@ -110,61 +109,42 @@ trueStartingVal <- F
     
     if(delta1 == 1){
       
-      param1 <- list("ax" = param1)
+      ax <- param1
       
     } else if(delta1 == 2){
       
-      param1 <- list("ab" = param1)
+      ab <- param1
       
     }
     
-    if(delta2 == 1){
-      
-      param2 <- NULL
-      
-    } else if(delta2 == 2){
-      
-      param2 <- list("k1t" = param2)
-      
-    }
+    if(delta2 == 2){
+      k1t <- param2
+    } 
     
-    if(delta3 == 1){
+    if(delta3 == 2){
       
-      param3 <- NULL
-      
-    } else if(delta3 == 2){
-      
-      param3 <- list("k2t" = param3$k2t)
+      k2t <- param3$k2t
       
     } else if(delta3 == 3){
       
-      param3 <- list("k2t" = param3$k2t,
-                     "bx" = param3$bx)
+      k2t <- param3$k2t
+      bx <- param3$bx
       
     }
     
-    if(delta4 == 1){
+    if(delta4 == 2){
       
-      param4 <- NULL
-      
-    } else if(delta4 == 2){
-      
-      param4 <- list("gtx" = param4)
+      gtx <- param4
       
     }
-    
-    param <- list("param1" = param1,
-                  "param2" = param2,
-                  "param3" = param3,
-                  "param4" = param4)
     
   } else { # from MLE
-
+    
     delta1 <- 1
-    delta2 <- 1
-    delta3 <- 1
+    delta2 <- 2
+    delta3 <- 3
     delta4 <- 1
-
+    
     if(delta1 == 1){
       
       ax <- apply(d / E, 1, function(x){
@@ -172,8 +152,6 @@ trueStartingVal <- F
       })
       
       term1 <- ax
-      
-      param1 <- list("ax" = ax)
       
     } else {
       
@@ -183,69 +161,43 @@ trueStartingVal <- F
       
       term1 <- ab[1] + ab[2] * c2x
       
-      param1 <- list("ab" = ab)
-      
     }
     
     term1 <- matrix(term1, X, Y, byrow = F)
     
-    # term2
+    # k1t <- rep(0, Y)
+    # k2t <- rep(0, Y)
+    # bx <- c2x
     
     term2 <- matrix(0, X, Y)
     
     if(delta2 == 2){
       k1t <- rep(0, Y)
-      param2 <- list("k1t" = k1t)
-    } else {
-      param2 <- NULL
-    }
-    
-    # term 3
-    
-    if(delta3 != 1){
-      k2t <- rep(0, Y)
-      param3 <- list("k2t" = k2t)
-    } else {
-      param3 <- NULL
     }
     
     if(delta3 == 3){
-      
       if(delta2 == 1){
         bx <- seq(-1, 0, length.out = X)
       } else if (delta2 == 2){
         bx <- c2x  
       }
       
-      param3 <- list("bx" = bx)
-      
+      k2t <- rnorm(Y)
     }
-    
-    term3 <- matrix(0, X, Y)
-    
-    # term 4
     
     if(delta4 == 2){
       gtx <- rep(0, X + Y - 1)
-      param4 <- list("gtx" = gtx)
-    } else {
-      param4 <- NULL
     }
     
+    term3 <- matrix(0, X, Y)
     term4 <- matrix(0, X, Y)
     
-    param <- list("param1" = param1,
-                  "param2" = param2,
-                  "param3" = param3,
-                  "param4" = param4)
-     
   }
   
 }
 
 # prior
 {
-  sd_a <- 2
   sd_b <- 2
   sd_k <- 2
   sd_g <- 2
@@ -254,11 +206,6 @@ trueStartingVal <- F
   
   p_k1t <- .1
   p_gtx <- .1
-  
-  priorParams <- list("sd_a" = sd_a,
-                      "sd_k" = sd_k,
-                      "sd_b" = sd_b,
-                      "sd_g" = sd_g)
 }
 
 # output 
@@ -286,8 +233,8 @@ trueStartingVal <- F
 # paramsUpdate
 {
   update_term1 <- T
-  update_term2 <- F
-  update_term3 <- F
+  update_term2 <- T
+  update_term3 <- T
   update_term4 <- F
   
   update_delta1 <- F
@@ -297,8 +244,8 @@ trueStartingVal <- F
 }
 
 for (iter in 1:(niter + nburn)) {
-
-  # if(delta3 == 3) print(bx[1:5])
+  
+  if(delta3 == 3) print(bx[1:5])
   # if(delta4 == 2) print(gtx[1:5])
   
   if(iter %% 10 == 0){
@@ -321,10 +268,20 @@ for (iter in 1:(niter + nburn)) {
   
   if(update_term1){
     
-    list_term1 <- updateTerm1(param$param1, delta1, 
-                              term1, term2, term3, term4)
-    param$param1 <- list_term1$param
-    term1 <- list_term1$term
+    if(delta1 == 1){
+      param1 <- ax
+    } else {
+      param1 <- ab
+    }
+    
+    list_term1 <- updateTerm1(param, delta1, term1, term2, term3, term4)
+    
+    if(delta1 == 1){
+      ax <- list_term1$param
+    } else {
+      ab <- list_term1$param
+    }
+    term1 <- list_term1$term1
     
   }
   
@@ -332,10 +289,14 @@ for (iter in 1:(niter + nburn)) {
   
   if(update_term2){
     
-    list_term2 <- updateTerm2(param$param2, delta2, 
-                              term1, term2, term3, term4)
-    param$param2 <- list_term2$param
-    term2 <- list_term2$term
+    if(delta2 == 2){ 
+      
+      term134 <- computeTerms(idx = 2, term1, term2, term3, term4)
+      
+      k1t <- updateK1T(k1t, d, E, term134)
+      term2 <- matrix(k1t, X, Y, byrow = T)
+      
+    } 
     
   }
   
@@ -343,37 +304,31 @@ for (iter in 1:(niter + nburn)) {
   
   if(update_term3){
     
-    list_params <- updateTerm3(param$param3, delta3, delta1, delta2,
-                               d, E, term1, term2, term3, term4, c2x, sd_bx)
-    param$param3 <- list_params$param
-    term3 <- list_params$term
+    term124 <- computeTerms(idx = 3, term1, term2, term3, term4)
     
-    # term124 <- computeTerms(idx = 3, term1, term2, term3, term4)
-    # 
-    # if(delta3 == 2){ # varying line 
-    #   
-    #   list_k2t <- update_k2t(k2t, d, E, term124, c2x)
-    #   k2t <- list_k2t$k2t
-    #   term3 <- list_k2t$term3
-    #     
-    # } else if(delta3 == 3){ # lee carter
-    #   
-    #   # list_k2t <- update_k2t(k2t, d, E, term124, bx)
-    #   # k2t <- list_k2t$k2t
-    #   # term3 <- list_k2t$term3
-    #   # 
-    #   # list_bx <- update_bx(bx, d, E, term124, k2t)
-    #   # bx <- list_bx$bx
-    #   # term3 <- list_bx$term3
-    #   
-    #   list_bxk2t <- update_bxk2t_twosteps(bx, k2t, d, E, term124, 
-    #                                       delta1, delta2, sd_bx)
-    #   # list_bxk2t <- update_bxk2t(bx, k2t, d, E, term124)
-    #   bx <- list_bxk2t$bx
-    #   k2t <- list_bxk2t$k2t
-    #   term3 <- list_bxk2t$term3
-    #   
-    # }
+    if(delta3 == 2){ # varying line 
+      
+      list_k2t <- update_k2t(k2t, d, E, term124, c2x)
+      k2t <- list_k2t$k2t
+      term3 <- list_k2t$term3
+      
+    } else if(delta3 == 3){ # lee carter
+      
+      # list_k2t <- update_k2t(k2t, d, E, term124, bx)
+      # k2t <- list_k2t$k2t
+      # term3 <- list_k2t$term3
+      # 
+      # list_bx <- update_bx(bx, d, E, term124, k2t)
+      # bx <- list_bx$bx
+      # term3 <- list_bx$term3
+      
+      list_bxk2t <- update_bxk2t_twosteps(bx, k2t, d, E, term124, delta2, sd_bx)
+      # list_bxk2t <- update_bxk2t(bx, k2t, d, E, term124)
+      bx <- list_bxk2t$bx
+      k2t <- list_bxk2t$k2t
+      term3 <- list_bxk2t$term3
+      
+    }
     
   }
   
@@ -381,30 +336,25 @@ for (iter in 1:(niter + nburn)) {
   
   if(update_term4){
     
-    list_params <- updateTerm4(param$param4, delta4, delta2, 
-                               d, E, term1, term2, term3, term4)
-    param$param4 <- list_params$param
-    term4 <- list_params$term
+    term123 <- computeTerms(idx = 4, term1, term2, term3, term4)
     
-    # term123 <- computeTerms(idx = 4, term1, term2, term3, term4)
-    # 
-    # if(delta4 == 2){ # cohort effect present
-    #   
-    #   if(delta2 == 1){ 
-    #     
-    #     list_gtx <- updateGTX(gtx, d, E, term123)
-    #     
-    #   } else if(delta2 == 2){
-    #     # if the additive effect on kt is present we 
-    #     # need an additional constraint
-    #     list_gtx <- updateGTX_kt(gtx, d, E, term123)
-    #     
-    #   }
-    #  
-    #   gtx <- list_gtx$gtx
-    #   term4 <- list_gtx$term4
-    #     
-    # } 
+    if(delta4 == 2){ # cohort effect present
+      
+      if(delta2 == 1){ 
+        
+        list_gtx <- updateGTX(gtx, d, E, term123)
+        
+      } else if(delta2 == 2){
+        # if the additive effect on kt is present we 
+        # need an additional constraint
+        list_gtx <- updateGTX_kt(gtx, d, E, term123)
+        
+      }
+      
+      gtx <- list_gtx$gtx
+      term4 <- list_gtx$term4
+      
+    } 
     
   }
   
@@ -434,9 +384,9 @@ for (iter in 1:(niter + nburn)) {
       loglik_current <- - loglik_term1_ax_fun(ax, d, E, cxt)
       
       logproposal_current <- sum(dnorm(ax, 
-                                   ax_star_all, 
-                                   sd_ax_star,
-                                   log = T))
+                                       ax_star_all, 
+                                       sd_ax_star,
+                                       log = T))
       logproposal_proposal <- 
         dmvnorm(ab_proposal, ab_star, Sigma_ab_star, log = T)
       
@@ -459,7 +409,7 @@ for (iter in 1:(niter + nburn)) {
         ax <- NULL
         
       }
-        
+      
     } else if(delta1 == 2){ # line
       
       ax_proposed <- rnorm(X, ax_star_all, 
@@ -546,7 +496,7 @@ for (iter in 1:(niter + nburn)) {
           km1_star[1:(Y-1)], 
           Sigma_km1_star, 
           log = T)
-
+      
       mh_ratio <- exp(
         loglik_proposal - loglik_current + 
           logprior_param_star +
@@ -577,11 +527,11 @@ for (iter in 1:(niter + nburn)) {
           term2 <- matrix(0, X, Y)
           
         }
+        
+        
+      }
       
       
-    }
-    
-    
     } else if(delta3 == 3){
       # lee carter effect present, therefore removing k1t 
       # now needs to take into account that bx
@@ -833,7 +783,7 @@ for (iter in 1:(niter + nburn)) {
                     log = T) 
           
         }
-         
+        
       }
       
       logprior_param_current <- 
@@ -843,7 +793,7 @@ for (iter in 1:(niter + nburn)) {
       logmove_current <- log(.5)
       
     }
-      
+    
     loglik_current <- - loglik_term3(k2t_current, bx_current, d, E, cxt)
     
     if(delta3_proposed == 1){
@@ -925,12 +875,12 @@ for (iter in 1:(niter + nburn)) {
         if (delta2 == 1){
           
           list_proposal_bx <- findProposalBX_given_k2t_m1(bx_start, k2t_proposed, 
-                                                       d, E, cxt, bx_start)
+                                                          d, E, cxt, bx_start)
           
         } else  if (delta2 == 2){
           
           list_proposal_bx <- findProposalBX_given_k2t_m2(bx_start, k2t_proposed, 
-                                                       d, E, cxt, bx_start)
+                                                          d, E, cxt, bx_start)
           
         }
         
@@ -939,13 +889,13 @@ for (iter in 1:(niter + nburn)) {
         Sigma_bx_star <- list_proposal_bx$Sigma_star
         
         bx_proposed_m <- mvrnorm(n = 1,
-                                  bx_star,
-                                  Sigma_bx_star)
+                                 bx_star,
+                                 Sigma_bx_star)
         
         if (delta2 == 1){
-        
+          
           bx_proposed <- c(-1, bx_proposed_m)
-        
+          
         } else  if (delta2 == 2){
           
           bx_proposed <- c(-1, bx_proposed_m, - sum(bx_proposed_m) + 1)
@@ -972,15 +922,15 @@ for (iter in 1:(niter + nburn)) {
     }
     
     loglik_proposal <- - loglik_term3(k2t_proposed, 
-                                     bx_proposed, 
-                                     d, E, cxt)
+                                      bx_proposed, 
+                                      d, E, cxt)
     
     mh_ratio <- exp(
       loglik_proposal - loglik_current + 
         logmove_current - logmove_proposal +
         logprior_param_star - logprior_param_current +
         logproposal_current - logproposal_star
-      )
+    )
     
     if(runif(1) < mh_ratio){
       
@@ -1006,7 +956,7 @@ for (iter in 1:(niter + nburn)) {
     }
     
     if(delta3 == 1){
-    
+      
       term3 <- matrix(0, X, Y)  
       
     } else if (delta3 == 1){
@@ -1029,15 +979,6 @@ for (iter in 1:(niter + nburn)) {
   
   if(update_delta4){
     
-    list_params <- proposeNewState(idx_delta = 4, 
-                                   delta1, delta2, delta3, delta4, 
-                                   term1, term2, term3, term4, 
-                                   param, d, E)
-    
-  }
-  
-  if(F){
-    
     term123 <- computeTerms(idx = 4, term1, term2, term3, term4)
     cxt <- term123
     
@@ -1049,7 +990,7 @@ for (iter in 1:(niter + nburn)) {
       Sigma_star <- list_proposal$Sigma_star
       
       idxElemProposed <- setdiff(1:(X+Y-1), X+Y-1)
-        
+      
     } else if(delta2 == 2){
       
       # list_proposal <- buildProposalGtx(d, E, cxt)
@@ -1098,11 +1039,11 @@ for (iter in 1:(niter + nburn)) {
     logProposal_proposal <- 
       dmvnorm(gtx_proposed[idxElemProposed], gtx_star, Sigma_star, log = T)
     
-      # sum(
-      #   dnorm(gtx_proposed[1:numElemProposed], gtx_star[1:numElemProposed], 
-      #         sd = diag(sqrt(Sigma_star[1:numElemProposed,
-      #                                   1:numElemProposed])), log = T)
-      # )
+    # sum(
+    #   dnorm(gtx_proposed[1:numElemProposed], gtx_star[1:numElemProposed], 
+    #         sd = diag(sqrt(Sigma_star[1:numElemProposed,
+    #                                   1:numElemProposed])), log = T)
+    # )
     
     mh_ratio <- exp(
       loglik_proposal - loglik_current + 
@@ -1197,7 +1138,7 @@ for (iter in 1:(niter + nburn)) {
       }
       
     }
-   
+    
   }
   
 }
@@ -1258,7 +1199,7 @@ qplot(1:niter, term1_output[,x] +
 
 # fitted curves CI
 {
-
+  
   mxt_CI <- matrix(NA, nrow(curvesTrue), 2)
   
   for (i in seq_len(nrow(curvesTrue))) {
@@ -1284,12 +1225,12 @@ qplot(1:niter, term1_output[,x] +
 
 curvesTrue %>% 
   filter(Year %in% 1:5) %>% 
-ggplot(aes(x = Age,
-           y = m,
-           ymin = CI_min,
-           ymax = CI_max,
-           color = Year,
-           group = Year)) +
+  ggplot(aes(x = Age,
+             y = m,
+             ymin = CI_min,
+             ymax = CI_max,
+             color = Year,
+             group = Year)) +
   geom_line(size = 1) +
   geom_ribbon(alpha = .25) +
   theme_bw()
@@ -1304,7 +1245,7 @@ ggplot(aes(x = Age,
 
 # fitted curves CI
 {
-
+  
   mxt_current <- matrix(NA, nrow(curvesTrue), 1)
   
   for (i in seq_len(nrow(curvesTrue))) {
@@ -1326,9 +1267,9 @@ ggplot(aes(x = Age,
 
 curvesTrue %>% 
   filter(Year %in% 1:5) %>% 
-ggplot(aes(x = Age,
-           color = Year,
-           group = Year)) + 
+  ggplot(aes(x = Age,
+             color = Year,
+             group = Year)) + 
   geom_line(aes(y = current)) + 
   geom_line(aes(y = m), size = 1) +
   # geom_ribbon(alpha = .25) +

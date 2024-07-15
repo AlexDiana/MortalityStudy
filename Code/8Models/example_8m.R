@@ -2,7 +2,7 @@
 library(ggplot2)
 
 X <- 20
-Y <- 10
+Y <- 5
 ages <- seq(41, 60, length.out = X)
 years <- 2000 + 1:Y
 
@@ -16,7 +16,7 @@ mu0 <- -3
   choice1 <- "L" # line
   
   ax <- seq(-2, 1, length.out = X) + rnorm(X, sd = .25)
-  cx <- 0 * (ages - mean(ages))
+  cx <- -3 + .1 * (ages - mean(ages))
   if(choice1 == "L"){
     term1 <- cx
   } else {
@@ -27,8 +27,8 @@ mu0 <- -3
 # Choice 2 (Additive year effect)
 
 {
-  # choice2 <- "A" # additive
-  choice2 <- "NA" # non additive
+  choice2 <- "A" # additive
+  # choice2 <- "NA" # non additive
   
   k1t <- seq(-1.5, 1.5, length.out = Y)
   if(choice2 == "A"){
@@ -42,8 +42,8 @@ mu0 <- -3
 # Choice 3 (Varying year-age effect)
 
 {
-  choice3 <- 2 # 1, varying line, 2 lee carter, 3 no effect
-   
+  choice3 <- 3 # 1, varying line, 2 lee carter, 3 no effect
+ 
   bx <- seq(.5, 0.0, length.out = X) + rnorm(X, sd = .05)
   c2x <- -.04 * (ages - mean(ages))
     
@@ -66,7 +66,8 @@ mu0 <- -3
   # choice4 <- "C" # cohort effect
   choice4 <- "NC" # no cohort effect
   
-  gtx <- seq(0, 2, length.out = X + Y) 
+  gtx <- rnorm(X + Y, sd = .1) 
+  # gtx <- seq(0, 2, length.out = X + Y) 
   
   if(choice4 == "C"){
     term4 <- gtx
@@ -81,6 +82,8 @@ data <- expand.grid(x = 1:X, t = 1:Y)
 mxtp <- apply(data, 1, function(dat){
   x <- dat[1]
   t <- dat[2]
+  # mu0 + term1[x] #+ term2[t] + term3[x,t] + term4[t - x + X + 1]
+  # mu0 + term1[x] + term2[t] #+ term3[x,t] + term4[t - x + X + 1]
   mu0 + term1[x] + term2[t] + term3[x,t] + term4[t - x + X + 1]
 })
 

@@ -10,16 +10,18 @@ library(emdbook)
 library(optimx)
 library(beepr)
 library(tidyverse)
+library(wiqid)
+library(coda)
 
-sourceCpp("Code/MCMC/code.cpp")
-source("Code/MCMC/functions.R")
+sourceCpp(here("Code/Product","code.cpp"))  
+source(here("Code/Product","functions.R"))
 
 # SIMULATED DATA ----------
 
 realData <- F
 
-X <- 30 # 30 # ages
-Y <- 36 # 36 #  years
+X <- 20 # 30 # ages
+Y <- 20 # 36 #  years
 P <- 2 # products
 
 ages <- 50 + 1:X
@@ -50,22 +52,22 @@ E <- array(rpois(X * Y * P, lambda = 5000), dim = c(X, Y, P))
 }
 
 # b
-# bx <- seq(.8, 0.0, length.out = X)
+# bx <- seq(.04, 0.0, length.out = X)
 {
   bx <- c(0.0486060237848308, 0.0447434606869872, 0.0454455937103952,
-        
+
         0.0455343703689019, 0.0450371958284298, 0.045971179464402, 0.0423557607243807,
-        
+
         0.0430873789219571, 0.0407579553985572, 0.0400763401483252, 0.042290002346062,
-        
+
         0.038102592760602, 0.0415188866516725, 0.0371060614373157, 0.0375132576452101,
-        
+
         0.0377232782861309, 0.0352622239546568, 0.0333521889560757, 0.0321508266831311,
-        
+
         0.0321165535952561, 0.0321842233147083, 0.0242184597077586, 0.0237268461855173,
-        
+
         0.0220992202727715, 0.0204801810055311, 0.0164336990044118, 0.0145874922698763,
-        
+
         0.0141527451412956, 0.015237830033942, 0.00812817171090743)
   bx <- bx[1:X]
 }
@@ -113,7 +115,7 @@ b_true <- bx
 k_true <- kt
 
 # ap
-modelA <- "NP"
+modelA <- "A"
 
 if (modelA == "NP") { # model NP
   ap_true <- matrix(rnorm(X * P, sd = .1), X, P)
@@ -135,7 +137,7 @@ if (modelA == "NP") { # model NP
 aap_true <- compute_aap(a_true, ap_true, modelA)
 
 # bp
-modelB <- "NP"
+modelB <- "A"
 
 if (modelB == "NP") { # model NP 
   bp_true <- matrix(rnorm(X * P, sd = .05), X, P)
@@ -154,12 +156,12 @@ if (modelB == "NP") { # model NP
 modelK <- "A"
 
 if (modelK == "NP") { # model NP 
-  kp_true <- matrix(rnorm(Y * P, sd = 4), Y, P)
+  kp_true <- matrix(rnorm(Y * P, sd = 1), Y, P)
   kp_true <- t(apply(kp_true, 1, function(x){
     x - mean(x)
   }))
 } else if (modelK == "A") { # model A
-  kp_0 <- rnorm(P, sd = 4)
+  kp_0 <- rnorm(P, sd = sd(k_true))
   kp_0 <- kp_0 - mean(kp_0)
   kp_true <- matrix(kp_0, Y, P, byrow = T)
 } else if (modelK == "B") { # model B
@@ -190,8 +192,8 @@ realData <- T
 
 load(here("Data","data_products.rda"))
 
-d <- d[10:60,,-3]
-E <- E[10:60,,-3]
+d <- d[10:60,,]
+E <- E[10:60,,]
 
 X <- dim(d)[1]
 Y <- dim(d)[2]
@@ -223,10 +225,42 @@ ages <- dimnames(d)[[1]]
 years <- dimnames(d)[[2]]
 groups <- dimnames(d)[[3]]
 
+# REAL DATA COUNTRY -------
+
+countries <- c("France","Italy","Japan","Denmark")
+
+P <- length(countries)
+
+age_subset <- c(60,90)
+year_subset <- c(1990,)
+d <- 
+
+for (p in 1:P) {
+  load(here("Data","Countries",paste0(country,"-data.rda")))
+  
+  X_subset <- which(as.numeric(dimnames(d)[[1]]) > 60 &
+                      as.numeric(dimnames(d)[[1]]) < 90)
+  Y_subset <- which(as.numeric(dimnames(d)[[2]]) > 1990 &
+                      as.numeric(dimnames(d)[[2]]) < 2022)
+  
+  d <- d[X_subset, Y_subset]
+  E <- E[X_subset, Y_subset]
+  
+  X <- dim(d)[1]
+  Y <- dim(d)[2]
+  
+  ages <- as.numeric(dimnames(d)[[1]])
+  years <- as.numeric(dimnames(d)[[2]])  
+  
+}
+
+
 # MCMC -----
 
-nburn <- 1000
-niter <- 1000
+nburn <- 200
+niter <- 200
+
+realData <- T
 
 # starting values
 {
@@ -259,7 +293,7 @@ niter <- 1000
   
   # from MLE
   {
-    if(realData){
+    if(F){
       
       a_start <- apply(d / E, 1, function(x){
         mean(log(x + 1), na.rm = T)
@@ -293,9 +327,9 @@ niter <- 1000
       bp <- matrix(0, X, P)
       kp <- matrix(0, Y, P)
       
-      gamma_a <- "B"
-      gamma_b <- "B"
-      gamma_k <- "B"
+      gamma_a <- modelA
+      gamma_b <- modelB
+      gamma_k <- modelK
     }
     
   }
@@ -304,21 +338,30 @@ niter <- 1000
 
 # prior
 {
+  # a_configs <- c("B","A")
+  # nConfigs_a <- length(a_configs)
+  # p_ap <- c(.6, .4)
   a_configs <- c("B","A","NP")
   nConfigs_a <- length(a_configs)
   p_ap <- c(.6, .3, .1)
   
+  # b_configs <- c("B","A")
+  # nConfigs_b <- length(b_configs)
+  # p_bp <- c(.6, .4)
   b_configs <- c("B","A","NP")
   nConfigs_b <- length(b_configs)
   p_bp <- c(.6, .3, .1)
   
+  # k_configs <- c("B","A")
+  # nConfigs_k <- length(k_configs)
+  # p_kp <- c(.6, .4)
   k_configs <- c("B","A","NP")
   nConfigs_k <- length(k_configs)
   p_kp <- c(.6, .3, .1)
   
-  sd_ap <- .1
+  sd_ap <- 1
   sd_bp <- 1
-  sd_kp <- 4
+  sd_kp <- 1
   
   sd_b <- 3
   sd_k <- 3
@@ -345,15 +388,17 @@ niter <- 1000
   update_ab <- T
   update_ap <- T
   update_bp <- T
-  update_gammaa <- T
-  update_gammab <- T
-  update_gammak <- T
+  update_gammaa <- F
+  update_gammab <- F
+  update_gammak <- F
 }
 
 for (iter in 1:(niter + nburn)) {
   
-  print(b[1:10])
-  
+  # print(a[1:5])
+  # print(b[1:5])
+  # print(k[1:5])
+  # 
   print(paste0("Gamma A = ",gamma_a,
                ", Gamma B = ",gamma_b,
                ", Gamma K = ",gamma_k))
@@ -369,7 +414,7 @@ for (iter in 1:(niter + nburn)) {
   }
   
   # update k0
-  
+  # print("Updatek0")
   if (update_k0) {
     
     # add product effect to ax and bx
@@ -378,68 +423,74 @@ for (iter in 1:(niter + nburn)) {
 
     # find maximum over all variables together
     {
+      # loglik_km1_current <- loglik_k0m1_r(d, E, a2, b2, kp)
+      # # gr_loglik_km1_current <- gr_loglik_k0m1_r(d, E, a2, b2, kp)
+      # 
       # # find maximum
       # laplace_fit <- optim(
-      #   par = k,
-      #   fn = loglik_k_current,
-      #   method = c("BFGS"),
-      #   gr = gr_loglik_k0_r(d, E, a2, b2, kp),
+      #   # par = k[1:(Y-1)],
+      #   par = rep(0, Y-1),
+      #   fn = loglik_km1_current,
+      #   # gr = gr_loglik_km1_current,
+      #   method = c("CG"),
       #   hessian = T
       # )
       # 
       # k_star <- laplace_fit$par
       # H_star <- laplace_fit$hessian
       # 
-      # Sigma_star <- 2 * solve(H_star)
+      # Sigma_star <- solve(H_star)
+      # 
+      # kpm1_proposed <- mrt2(k_star, Sigma_star, df = 3)
+      # 
+      # k_proposed <- c(kpm1_proposed, - sum(kpm1_proposed))
+      # 
+      # logproposal_star <- dmt_cpp(kpm1_proposed, nu = 3, k_star,
+      #                             Sigma_star, T)
+      # 
+      # logproposal_current <- dmt_cpp(k[1:(Y-1)], nu = 3, k_star,
+      #                                Sigma_star, T)
     }
     
     # find maximum for each variabe individually (it's the same as independent)
     {
         k_star <- rep(NA, Y)
         Sigma_star <- matrix(0, Y, Y)
-        
+
         for (t in 1:Y) {
           # print(t)
-          
-          {
-            # loglik_kt_current <- loglik_kt_r(t, d, E, a2, b2, k, kp)
-            # gr_loglik_kt_current <- gr_loglik_kt_r(t, d, E, a2, b2, k, kp)
-            # 
-            # # find maximum
-            # 
-            # laplace_fit <- optim(
-            #   par = k[t],
-            #   # lower = k[t] - 10,
-            #   # upper = k[t] + 10,
-            #   fn = loglik_kt_current,
-            #   method = c("BFGS"),
-            #   gr = gr_loglik_kt_current,
-            #   hessian = T
-            # )  
-          }
-          
+
           list_kstar <- findProposalK0(t, a2, b2, k, kp, d, E)
-          
+
           loglik_kt_current <- loglik_kt_r(t, d, E, a2, b2, k, kp)
-          
-          # loglik1 <- - loglik_kt_current(list_kstar$k_star)
-          # loglik2 <- - loglik_kt_current(k[t])
-          # loglik3 <- - loglik_kt_current(k_proposed[t])
-          # 
-          # loglik1 - loglik3
-          
+
           k_star[t] <- list_kstar$k_star
           Sigma_star[t, t] <- list_kstar$Sigma_star
-          
+
         }
+
+        k_proposed <- as.vector(sampleMTconstraint_k(k_star, Sigma_star))
+        # k_proposed <- as.vector(sampleMVNconstraint_k(k_star, Sigma_star))
         
+        logproposal_star <- sum(
+          sapply(1:Y, function(t){
+            log(dt2(k_proposed[t], k_star[t], sqrt(diag(Sigma_star)[t]), df = 3))
+          }))
+        # logproposal_star <- sum(dnorm(k_proposed, k_star,
+        #                               sqrt(diag(Sigma_star)), log = T))
+
+        logproposal_current <- sum(
+          sapply(1:Y, function(t){
+            log(dt2(k[t], k_star[t], sqrt(diag(Sigma_star)[t]), df = 3))
+          }))
+        # logproposal_current <- sum(dnorm(k, k_star,
+                                         # sqrt(diag(Sigma_star)), log = T))
+
     }
     
-    k_proposed <- as.vector(sampleMVNconstraint_k(k_star, Sigma_star))
-
     # create loglikelihood function of k given ax and bx
     loglik_k_current <- loglik_k0_r(d, E, a2, b2, kp)
-    
+
     loglik_star <- - loglik_k_current(k_proposed)
     loglik_current <- - loglik_k_current(k)
 
@@ -447,23 +498,8 @@ for (iter in 1:(niter + nburn)) {
                                0, sd = sd_k, log = T))
     logprior_current <- sum(dnorm(k,
                                   0, sd = sd_k, log = T))
-    
-    # compute proposal for all variables together
-    {
-      # logproposal_star <- dmvnorm(as.vector(k_proposed), as.vector(k_star), Sigma_star, log = T)
-      # logproposal_current <- dmvnorm(as.vector(k), as.vector(k_star), Sigma_star, log = T)
-    }
-    
-    # find proposal for each variable individually and sum
-    {
-      logproposal_star <- sum(dnorm(k_proposed, k_star, 
-                                    sqrt(diag(Sigma_star)), log = T))
-      
-      logproposal_current <- sum(dnorm(k, k_star, 
-                                       sqrt(diag(Sigma_star)), log = T))
-    }
-    
-    mh_ratio <- exp(loglik_star - loglik_current + 
+
+    mh_ratio <- exp(loglik_star - loglik_current +
                       logprior_star - logprior_current +
                       logproposal_current  - logproposal_star)
 
@@ -474,7 +510,7 @@ for (iter in 1:(niter + nburn)) {
   }
   
   # update k_p
-  
+  # print("Updatekp")
   if (update_kp) {
     
     if(gamma_k != "B"){ # if the product effect is present for this variable
@@ -583,8 +619,111 @@ for (iter in 1:(niter + nburn)) {
     
   }
   
-  # update a and b jointly
+  # update a
+  # print("Updatea")
+  if(update_ab){
+    
+    # add product effect to k
+    k2 <- matrix(k, Y, P, byrow = F) + kp
+    b2 <- matrix(b, X, P, byrow = F) + bp
   
+    a2_current <- aperm(array(ap, dim = c(X, P, Y)), perm = c(1,3,2))
+    b2_current <- aperm(array(b2, dim = c(X, P, Y)), perm = c(1,3,2))
+    k2_current <- aperm(array(k2, dim = c(Y, P, X)), perm = c(3,1,2))
+    
+    m_xtp <- a2_current + b2_current * k2_current + log(E)
+    
+    for (x in 1:X) {
+      
+      # cxt <- exp(matrix(ap[x,], Y, P, byrow = T) + 
+      #              k2 * matrix(b2[x,], Y, P, byrow = T))
+      
+      ax_star <- log(
+        sum(d[x,,], na.rm = T) / sum(exp(m_xtp[x,,]), na.rm = T)
+      )
+      
+      hessian_ax_star <- derl2der2a(ax_star, m_xtp[x,,])
+      sd_star <- sqrt(- 1 / hessian_ax_star)
+      
+      ax_proposal <- rt2(1, ax_star, sd_star, df = 3)
+      
+      loglik_proposal <- loglik_LCp_x(x, ax_proposal, ap, b2, k2, d, E)
+      
+      loglik_current <- loglik_LCp_x(x, a[x], ap, b2, k2, d, E)
+      
+      logproposal_proposal <- log(dt2(ax_proposal, ax_star, sd_star, df = 3))
+      logproposal_current <- log(dt2(a[x], ax_star, sd_star, df = 3))
+      
+      mh_ratio <- exp(loglik_proposal - loglik_current + 
+                        logproposal_current - logproposal_proposal)
+      
+      if(runif(1) < mh_ratio){
+        
+        a[x] <- ax_proposal
+        
+      }
+      
+    }
+    
+    
+  }
+  
+  # update b
+  # print("Updateb")
+  if(update_ab){
+    
+    # add product effect to k
+    k2 <- matrix(k, Y, P, byrow = F) + kp
+    a2 <- matrix(a, X, P, byrow = F) + ap
+    
+    loglik_b_current <- loglik_bm1_r(d, E, a2, bp, k2)
+    gr_loglik_b_current <- gr_loglik_bm1_r(d, E, a2, bp, k2)
+
+    # find maximum
+    laplace_fit <- optim(
+      # par = rep(0, X-1),
+      par = b[1:(X-1)],
+      fn = loglik_b_current,
+      gr = gr_loglik_b_current,
+      method = c("BFGS"),
+      hessian = T
+    )
+
+    loglik_b_current(laplace_fit$par) < loglik_b_current(b[1:(X-1)])
+    
+    bm1_star <- laplace_fit$par
+    Sigma_star <- solve(laplace_fit$hessian)
+
+    bm1_proposed <- mrt2(bm1_star, Sigma_star, df = 3)
+    b_proposed <- c(bm1_proposed, 1 - sum(bm1_proposed))
+
+    loglik_b_current <- loglik_b_r(d, E, a2, bp, k2)
+    
+    loglik_star <- - loglik_b_current(b_proposed)
+    loglik_current <- - loglik_b_current(b)
+    # loglik_star
+    
+    logproposal_star <- dmt_cpp(bm1_proposed, nu = 3, bm1_star, Sigma_star, T)
+    logproposal_current <- dmt_cpp(b[1:(X-1)], nu = 3, bm1_star, Sigma_star, T)
+    
+    logprior_star <- sum(dnorm(b_proposed, mean = 0, sd = sd_b, log = T))
+    logprior_current <- sum(dnorm(b, mean = 0, sd = sd_b, log = T))
+    # loglik_star - loglik_current
+    mh_ratio <- exp(
+      loglik_star - loglik_current + 
+        logprior_star - logprior_current + 
+        logproposal_current - logproposal_star
+    )
+    
+    if(runif(1) < mh_ratio){
+      
+      b <- b_proposed
+      
+    }
+    
+  }
+  
+  # update a and b jointly
   if (update_ab) {
     
     # add product effect to k
@@ -637,14 +776,8 @@ for (iter in 1:(niter + nburn)) {
       
     }
     
-    Sigma_star <- 2 * Sigma_star
-    
-    # loglik_ab_current(c(a,b))
-    # gr_loglik_ab_r(d, E, ap, bp, k2)(c(a,b))
-    #
-    # loglik_ab_current(laplace_fit$par)
-    # gr_loglik_ab_r(d, E, ap, bp, k2)(laplace_fit$par)
-
+    # Sigma_star <- 2 * Sigma_star
+  
     ab_proposed <- sampleMVNconstraint_ab(ab_star, Sigma_star)
     a_proposed <- ab_proposed[1:X]
     b_proposed <- ab_proposed[X + 1:X]
@@ -696,7 +829,7 @@ for (iter in 1:(niter + nburn)) {
   }
   
   # update a_p
-  
+  # print("Updateap")
   if (update_ap) {
     
     if(gamma_a != "B"){
@@ -838,7 +971,7 @@ for (iter in 1:(niter + nburn)) {
   }
   
   # update b_p
-  
+  # print("Updatebp")
   if (update_bp) {
     
     if(gamma_b != "B"){
@@ -848,36 +981,75 @@ for (iter in 1:(niter + nburn)) {
       
       if(gamma_b == "A"){ # currently in additive model
         
-        loglik_bp_current <- loglik_bp_r(a2, b, d, E, k2)
-        gr_loglik_bp_current <- gr_loglik_bp_r(a2, b, d, E, k2)
+        # old
+        {
+          # loglik_bp_current <- loglik_bp_r(a2, b, d, E, k2)
+          # gr_loglik_bp_current <- gr_loglik_bp_r(a2, b, d, E, k2)
+          # 
+          # # find maximum
+          # laplace_fit <- optim(
+          #   # par = ap[x,],
+          #   par = rep(0, P),
+          #   fn = loglik_bp_current,
+          #   method = c("BFGS"),
+          #   gr = gr_loglik_bp_current,
+          #   hessian = T
+          # )
+          # 
+          # bp_star <- laplace_fit$par
+          # H_star <- laplace_fit$hessian
+          # 
+          # Sigma_star <- 2 * solve(H_star)
+          # # Sigma_star <- 2 * solve(H_star)
+          # 
+          # bp_proposed <- sampleMVNconstraint_k(bp_star, Sigma_star)
+          # 
+          # loglik_proposal <- - loglik_bp_current(bp_proposed)
+          # loglik_current <- - loglik_bp_current(bp[x,])
+          # 
+          # logproposal_star <- dmvnorm(as.vector(bp_proposed), 
+          #                             as.vector(bp_star), 
+          #                             Sigma_star, log = T)
+          # 
+          # logproposal_current <- dmvnorm(as.vector(bp[x,]), 
+          #                                as.vector(bp_star), 
+          #                                Sigma_star, log = T)  
+        }
         
-        # find maximum
-        laplace_fit <- optim(
-          # par = ap[x,],
-          par = rep(0, P),
-          fn = loglik_bp_current,
-          method = c("BFGS"),
-          gr = gr_loglik_bp_current,
-          hessian = T
-        )
-        
-        bp_star <- laplace_fit$par
-        H_star <- laplace_fit$hessian
-        
-        Sigma_star <- 2 * solve(H_star)
-        
-        bp_proposed <- sampleMVNconstraint_k(bp_star, Sigma_star)
-        
-        loglik_proposal <- - loglik_bp_current(bp_proposed)
-        loglik_current <- - loglik_bp_current(bp[x,])
-        
-        logproposal_star <- dmvnorm(as.vector(bp_proposed), 
-                                    as.vector(bp_star), 
-                                    Sigma_star, log = T)
-        
-        logproposal_current <- dmvnorm(as.vector(bp[x,]), 
-                                       as.vector(bp_star), 
-                                       Sigma_star, log = T)
+        # new
+        {
+          loglik_bpm1_current <- loglik_bp_m1_r(a2, b, d, E, k2)
+          # gr_loglik_bp_current <- gr_loglik_bp_r(a2, b, d, E, k2)
+          
+          # find maximum
+          laplace_fit <- optim(
+            # par = ap[x,],
+            par = rep(0, P - 1),
+            fn = loglik_bpm1_current,
+            method = c("BFGS"),
+            # gr = gr_loglik_bp_current,
+            hessian = T
+          )
+          
+          bp_star <- laplace_fit$par
+          Sigma_star <- solve(laplace_fit$hessian)
+          
+          bpm1_proposed <- mrt2(bp_star, Sigma_star, df = 3)
+          bp_proposed <- c(bpm1_proposed, - sum(bpm1_proposed))
+          
+          loglik_bp_current <- loglik_bp_r(a2, b, d, E, k2)
+          
+          loglik_proposal <- - loglik_bp_current(bp_proposed)
+          loglik_current <- - loglik_bp_current(bp[x,])
+          
+          logproposal_star <- dmt_cpp(as.vector(bpm1_proposed), nu = 3,
+                                      as.vector(bp_star), 
+                                      Sigma_star, T)
+          
+          logproposal_current <- dmt_cpp(as.vector(bp[x,1:(P-1)]), nu = 3,
+                                         as.vector(bp_star), 
+                                         Sigma_star, T)  
+        }
         
         logprior_star <- sum(dnorm(as.vector(bp_proposed), 0, sd_bp, log = T))
         logprior_current <- sum(dnorm(as.vector(bp[x,]), 0, sd_bp, log = T))
@@ -939,8 +1111,173 @@ for (iter in 1:(niter + nburn)) {
     
   }
   
-  # propose gamma_a
+  # update a and ap
+  if(update_ab & F){
+    
+    k2 <- matrix(k, Y, P, byrow = F) + kp
+    b2 <- matrix(b, X, P, byrow = F) + bp
+    
+    if(gamma_a == "A"){ # currently in additive model
+      
+      loglik_aap_current <- loglik_aapm1_r(b2, d, E, k2)
+      # gr_loglik_aap_current <- gr_loglik_aap_r(b2, d, E, k2)
+      
+      aap_current <- c(a, ap[1,1:(P-1)])
+      
+      # find maximum
+      laplace_fit <- optim(
+        par = aap_current,
+        # par = rep(0, P),
+        fn = loglik_aap_current,
+        # gr = gr_loglik_aap_current,
+        method = c("BFGS"),
+        hessian = T
+      )
+      
+      aap_star <- laplace_fit$par
+      Sigma_star <- solve(laplace_fit$hessian)
+      
+      aap_proposed <- mvrnorm(1, aap_star, Sigma_star)
+      
+      loglik_proposal <- - loglik_aap_current(aap_proposed)
+      loglik_current <- - loglik_aap_current(aap_current)
+      
+      logproposal_star <- dmvnorm(as.vector(aap_proposed), as.vector(aap_star), 
+                                  Sigma_star, log = T)
+      logproposal_current <- dmvnorm(as.vector(aap_current), as.vector(aap_star), 
+                                     Sigma_star, log = T)
+      
+      ap_proposed <- c(aap_proposed[X + 1:(P-1)], - sum(aap_proposed[X + 1:(P-1)]))
+      
+      logprior_star <- sum(dnorm(as.vector(ap_proposed), 0, sd_ap, log = T))
+      logprior_current <- sum(dnorm(as.vector(ap[1,1:P]), 0, sd_ap, log = T))
+      
+      mh_ratio <- exp(loglik_proposal - loglik_current + 
+                        logproposal_current - logproposal_star +
+                        logprior_star - logprior_current)
+      
+      # print(mh_ratio)
+      if(runif(1) < mh_ratio){
+        a <- aap_proposed[1:X]
+        ap <- matrix(ap_proposed, X, P, byrow = T)
+      }
+      
+    } 
+    
+  }
   
+  # update b and bp
+  if(update_ab & F){
+    
+    k2 <- matrix(k, Y, P, byrow = F) + kp
+    a2 <- matrix(a, X, P, byrow = F) + ap
+    
+    if(gamma_b == "A"){ # currently in additive model
+      
+      loglik_bbp_current <- loglik_bbp_m1_r(a2, d, E, k2)
+      # gr_loglik_aap_current <- gr_loglik_aap_r(b2, d, E, k2)
+      
+      bbp_current <- c(b, bp[1,1:(P-1)])
+      
+      # find maximum
+      laplace_fit <- optim(
+        par = bbp_current,
+        # par = rep(0, P),
+        fn = loglik_bbp_current,
+        # gr = gr_loglik_aap_current,
+        method = c("BFGS"),
+        hessian = T
+      )
+      
+      bbp_star <- laplace_fit$par
+      Sigma_star <- solve(laplace_fit$hessian)
+      
+      bbp_proposed <- mvrnorm(1, bbp_star, Sigma_star)
+      
+      loglik_proposal <- - loglik_bbp_current(bbp_proposed)
+      loglik_current <- - loglik_bbp_current(bbp_current)
+      
+      logproposal_star <- dmvnorm(as.vector(bbp_proposed), as.vector(bbp_star), 
+                                  Sigma_star, log = T)
+      logproposal_current <- dmvnorm(as.vector(bbp_current), as.vector(bbp_star), 
+                                     Sigma_star, log = T)
+      
+      bp_proposed <- c(bbp_proposed[X + 1:(P-1)], - sum(bbp_proposed[X + 1:(P-1)]))
+      
+      logprior_star <- sum(dnorm(as.vector(bp_proposed), 0, sd_ap, log = T))
+      logprior_current <- sum(dnorm(as.vector(bp[1,1:P]), 0, sd_ap, log = T))
+      
+      mh_ratio <- exp(loglik_proposal - loglik_current + 
+                        logproposal_current - logproposal_star +
+                        logprior_star - logprior_current)
+      
+      # print(mh_ratio)
+      if(runif(1) < mh_ratio){
+        b <- bbp_proposed[1:X]
+        bp <- matrix(bp_proposed, X, P, byrow = T)
+      }
+      
+    } 
+    
+  }
+  
+  # update k and kp
+  if(update_k0 & F){
+    
+    b2 <- matrix(b, X, P, byrow = F) + bp
+    a2 <- matrix(a, X, P, byrow = F) + ap
+    
+    if(gamma_k == "A"){ # currently in additive model
+      
+      loglik_kkp_current <- loglik_kppm1_r(a2, b2, d, E)
+      # gr_loglik_aap_current <- gr_loglik_aap_r(b2, d, E, k2)
+      
+      kkp_current <- c(k[1:(Y-1)], kp[1,1:(P-1)])
+      
+      # find maximum
+      laplace_fit <- optim(
+        par = kkp_current,
+        # par = rep(0, P),
+        fn = loglik_kkp_current,
+        # gr = gr_loglik_aap_current,
+        method = c("BFGS"),
+        hessian = T
+      )
+      
+      kkp_star <- laplace_fit$par
+      Sigma_star <- solve(laplace_fit$hessian)
+      
+      kkp_proposed <- mvrnorm(1, kkp_star, Sigma_star)
+      
+      loglik_proposal <- - loglik_kkp_current(kkp_proposed)
+      loglik_current <- - loglik_kkp_current(kkp_current)
+      
+      logproposal_star <- dmvnorm(as.vector(kkp_proposed), as.vector(kkp_star), 
+                                  Sigma_star, log = T)
+      logproposal_current <- dmvnorm(as.vector(kkp_current), as.vector(kkp_star), 
+                                     Sigma_star, log = T)
+      
+      kp_proposed <- c(kkp_proposed[Y - 1 + 1:(P-1)], - sum(kkp_proposed[Y - 1 + 1:(P-1)]))
+      
+      logprior_star <- sum(dnorm(as.vector(kp_proposed), 0, sd_ap, log = T))
+      logprior_current <- sum(dnorm(as.vector(kp[1,1:P]), 0, sd_ap, log = T))
+      
+      mh_ratio <- exp(loglik_proposal - loglik_current + 
+                        logproposal_current - logproposal_star +
+                        logprior_star - logprior_current)
+      
+      # print(mh_ratio)
+      if(runif(1) < mh_ratio){
+        k <- c(kkp_proposed[1:(Y-1)], -sum(kkp_proposed[1:(Y-1)]))
+        kp <- matrix(kp_proposed, Y, P, byrow = T)
+      }
+      
+    } 
+    
+  }
+  
+  # propose gamma_a
+  # print("Updategamma")
   if (update_gammaa) {
     
     k2 <- matrix(k, Y, P, byrow = F) + kp
@@ -960,35 +1297,34 @@ for (iter in 1:(niter + nburn)) {
     
       logProposal_current <- 0
       
+      # old
       {
-      #   loglik_ap_current <- loglik_ap_r(a, b2, d, E, k2)
-      # gr_loglik_ap_current <- gr_loglik_ap_r(a, b2, d, E, k2)
-      # 
-      # # find maximum
-      # laplace_fit <- optim(
-      #   par = rep(0, P),
-      #   fn = loglik_ap_current,
-      #   method = c("BFGS"),
-      #   gr = gr_loglik_ap_current,
-      #   hessian = T
-      # )
-      # 
-      # ap_star <- laplace_fit$par
-      # H_star <- laplace_fit$hessian
-      # 
-      # Sigma_star <- 2 * solve(H_star)
+        # list_ap_proposal <- findProposalApAdditive(a, b2, d, E, k2)
+        # ap_star <- list_ap_proposal$ap_star
+        # Sigma_star <- list_ap_proposal$Sigma_star
+        # 
+        # ap_proposed_pm1 <- ap[x,1:(P-1)]
+        # ap_proposed <- c(ap_proposed_pm1, - sum(ap_proposed_pm1))
+        # 
+        # logProposal_current <- dmvnorm(as.vector(ap_proposed_pm1), 
+        #                                as.vector(ap_star[1:(P-1)]), 
+        #                                as.matrix(Sigma_star[1:(P-1),1:(P-1)]), log = T)
       }
       
-      list_ap_proposal <- findProposalApAdditive(a, b2, d, E, k2)
-      ap_star <- list_ap_proposal$ap_star
-      Sigma_star <- list_ap_proposal$Sigma_star
+      # new
+      {
+        list_ap_proposal <- findProposalApm1Additive(a, b2, d, E, k2)
+        ap_star <- list_ap_proposal$ap_star
+        Sigma_star <- list_ap_proposal$Sigma_star
+        
+        ap_proposed_pm1 <- ap[x,1:(P-1)]
+        ap_proposed <- c(ap_proposed_pm1, - sum(ap_proposed_pm1))
+        
+        logProposal_current <- dmvnorm(as.vector(ap_proposed_pm1), 
+                                       as.vector(ap_star), 
+                                       as.matrix(Sigma_star), log = T)
+      }
       
-      ap_proposed_pm1 <- ap[x,1:(P-1)]
-      ap_proposed <- c(ap_proposed_pm1, - sum(ap_proposed_pm1))
-      
-      logProposal_current <- dmvnorm(as.vector(ap_proposed_pm1), 
-                                  as.vector(ap_star[1:(P-1)]), 
-                                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]), log = T)
       
       logprior_param_current <- sum(dnorm(as.vector(ap_proposed), 0, sd_ap, log = T))
       
@@ -1000,35 +1336,32 @@ for (iter in 1:(niter + nburn)) {
       
       for (x in 1:X) {
         
+        # old
         {
           
-          # loglik_apx_current <- loglik_apx_r(x, a, ap, b2, d, E, k2)
-          # gr_loglik_apx_current <- gr_loglik_apx_r(x, a, ap, b2, d, E, k2)
+          # list_ap_proposal <- findProposalApXNonparametrics(x, a, ap, b2, d, E, k2, sd_ap)
+          # ap_star <- list_ap_proposal$ap_star
+          # Sigma_star <- list_ap_proposal$Sigma_star
           # 
-          # # find maximum
-          # laplace_fit <- optim(
-          #   # par = ap[x,],
-          #   par = rep(0, P),
-          #   fn = loglik_apx_current,
-          #   method = c("BFGS"),
-          #   gr = gr_loglik_apx_current,
-          #   hessian = T
-          # )
-          # 
-          # ap_star <- laplace_fit$par
-          # H_star <- laplace_fit$hessian
-          # Sigma_star <- 2 * solve(H_star)
+          # logProposal_current <- logProposal_current + 
+          #   dmvnorm(as.vector(ap[x,1:(P-1)]), 
+          #           as.vector(ap_star[1:(P-1)]), 
+          #           as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4, log = T)
+        }
+       
+         # new
+        {
+          
+          list_ap_proposal <- findProposalApXm1Nonparametrics(x, a, ap, b2, d, E, k2, sd_ap)
+          ap_star <- list_ap_proposal$ap_star
+          Sigma_star <- list_ap_proposal$Sigma_star
+          
+          logProposal_current <- logProposal_current + 
+            dmvnorm(as.vector(ap[x,1:(P-1)]), 
+                    as.vector(ap_star), 
+                    as.matrix(Sigma_star), log = T)
         }
       
-        list_ap_proposal <- findProposalApXNonparametrics(x, a, ap, b2, d, E, k2, sd_ap)
-        ap_star <- list_ap_proposal$ap_star
-        Sigma_star <- list_ap_proposal$Sigma_star
-        
-        logProposal_current <- logProposal_current + 
-          dmvnorm(as.vector(ap[x,1:(P-1)]), 
-                  as.vector(ap_star[1:(P-1)]), 
-                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4, log = T)
-        
         logprior_param_current <- logprior_param_current + 
           sum(dnorm(as.vector(ap[x,]), 0, sd_ap, log = T))
         
@@ -1049,21 +1382,45 @@ for (iter in 1:(niter + nburn)) {
       
     } else if (newConfig == "A"){ # proposing additive model
       
-      list_ap_proposal <- findProposalApAdditive(a, b2, d, E, k2)
-      ap_star <- list_ap_proposal$ap_star
-      Sigma_star <- list_ap_proposal$Sigma_star
+      # old
+      {
+        # list_ap_proposal <- findProposalApAdditive(a, b2, d, E, k2)
+        # ap_star <- list_ap_proposal$ap_star
+        # Sigma_star <- list_ap_proposal$Sigma_star
+        # 
+        # ap_proposed_pm1 <- mvrnorm(
+        #   n = 1,
+        #   ap_star[1:(P-1)],
+        #   as.matrix(Sigma_star[1:(P-1),1:(P-1)])
+        # )
+        # 
+        # ap_proposed <- c(ap_proposed_pm1, - sum(ap_proposed_pm1))
+        # 
+        # logProposal_star <- dmvnorm(as.vector(ap_proposed_pm1), 
+        #                             as.vector(ap_star[1:(P-1)]), 
+        #                             as.matrix(Sigma_star[1:(P-1),1:(P-1)]), log = T)
+        # 
+      }
       
-      ap_proposed_pm1 <- mvrnorm(
-        n = 1,
-        ap_star[1:(P-1)],
-        as.matrix(Sigma_star[1:(P-1),1:(P-1)])
-      )
-      
-      ap_proposed <- c(ap_proposed_pm1, - sum(ap_proposed_pm1))
-      
-      logProposal_star <- dmvnorm(as.vector(ap_proposed_pm1), 
-                                  as.vector(ap_star[1:(P-1)]), 
-                                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]), log = T)
+      # new
+      {
+        list_ap_proposal <- findProposalApm1Additive(a, b2, d, E, k2)
+        ap_star <- list_ap_proposal$ap_star
+        Sigma_star <- list_ap_proposal$Sigma_star
+        
+        ap_proposed_pm1 <- mvrnorm(
+          n = 1,
+          ap_star,
+          as.matrix(Sigma_star)
+        )
+        
+        ap_proposed <- c(ap_proposed_pm1, - sum(ap_proposed_pm1))
+        
+        logProposal_star <- dmvnorm(as.vector(ap_proposed_pm1), 
+                                    as.vector(ap_star), 
+                                    as.matrix(Sigma_star), log = T)
+        
+      }
       
       logprior_param_star <- sum(dnorm(as.vector(ap_proposed), 0, sd_ap, log = T))
       
@@ -1079,30 +1436,65 @@ for (iter in 1:(niter + nburn)) {
       
       for (x in 1:X) {
         
-        list_ap_proposal <- findProposalApXNonparametrics(x, a, ap, b2, d, E, k2, sd_ap)
-        ap_star <- list_ap_proposal$ap_star
-        Sigma_star <- list_ap_proposal$Sigma_star
+        # old
+        {
+          # list_ap_proposal <- findProposalApXNonparametrics(x, a, ap, b2, d, E, k2, sd_ap)
+          # ap_star <- list_ap_proposal$ap_star
+          # Sigma_star <- list_ap_proposal$Sigma_star
+          # 
+          # apx_proposed_pm1 <- mvrnorm(
+          #   n = 1,
+          #   ap_star[1:(P-1)],
+          #   as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4
+          # )
+          # 
+          # ap_proposed[x,] <- c(apx_proposed_pm1, - sum(apx_proposed_pm1)) 
+          # 
+          # logProposal_star <- logProposal_star + 
+          #   dmvnorm(as.vector(apx_proposed_pm1), 
+          #           as.vector(ap_star[1:(P-1)]), 
+          #           as.matrix(Sigma_star[1:(P-1),1:(P-1)]), 
+          #           log = T)  
+        }
         
-        apx_proposed_pm1 <- mvrnorm(
-          n = 1,
-          ap_star[1:(P-1)],
-          as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4
-        )
-        
-        ap_proposed[x,] <- c(apx_proposed_pm1, - sum(apx_proposed_pm1)) 
-        
-        # loglik_ap_current <- loglik_ap_r(a, b2, d, E, k2)
+        # new
+        {
+          list_ap_proposal <- findProposalApXm1Nonparametrics(x, a, ap, b2, d, E, k2, sd_ap)
+          ap_star <- list_ap_proposal$ap_star
+          Sigma_star <- list_ap_proposal$Sigma_star
+          
+          #
+          
+          # aap <- matrix(a, X, P, byrow = F) + ap
+          # loglik_current <- loglik_LCp_r(aap, b2, k2, d, E)
+          # ap_proposed <- ap
+          # ap_proposed[x,] <- c(ap_star, -sum(ap_star))
+          # aap_proposed <- matrix(a, X, P, byrow = F) + ap_proposed
+          # loglik_proposal <- loglik_LCp_r(aap_proposed, b2, k2, d, E) 
+          # loglik_proposal - loglik_current
+          #
+          
+          apx_proposed_pm1 <- 
+            mvrnorm(
+            n = 1,
+            ap_star,
+            as.matrix(Sigma_star)
+          )
+          
+          ap_proposed[x,] <- c(apx_proposed_pm1, - sum(apx_proposed_pm1)) 
+          
+          logProposal_star <- logProposal_star + 
+            dmvnorm(as.vector(apx_proposed_pm1), 
+                    as.vector(ap_star), 
+                    as.matrix(Sigma_star), 
+                    log = T)  
+        }
+       
         
         logprior_param_star <- 
           logprior_param_star + 
           sum(dnorm(as.vector(ap_proposed[x,]), 0, sd_ap, log = T))
         
-        logProposal_star <- logProposal_star + 
-          dmvnorm(as.vector(apx_proposed_pm1), 
-                  as.vector(ap_star[1:(P-1)]), 
-                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]), 
-                  log = T)
-      
       }
       
     }
@@ -1245,7 +1637,7 @@ for (iter in 1:(niter + nburn)) {
   }
   
   # propose gamma_b
-  
+  # print("Updategammab")
   if (update_gammab) {
     
     k2 <- matrix(k, Y, P, byrow = F) + kp
@@ -1284,16 +1676,34 @@ for (iter in 1:(niter + nburn)) {
       # Sigma_star <- 2 * solve(H_star)
       }
       
-      list_bp_proposal <- findProposalBpAdditive(a2, b, d, E, k2)
-      bp_star <- list_bp_proposal$bp_star
-      Sigma_star <- list_bp_proposal$Sigma_star
+      # old
+      {
+        # list_bp_proposal <- findProposalBpAdditive(a2, b, d, E, k2)
+        # bp_star <- list_bp_proposal$bp_star
+        # Sigma_star <- list_bp_proposal$Sigma_star
+        # 
+        # bp_proposed_pm1 <- bp[x,1:(P-1)]
+        # bp_proposed <- c(bp_proposed_pm1, - sum(bp_proposed_pm1))
+        # 
+        # logProposal_current <- dmvnorm(as.vector(bp_proposed_pm1), 
+        #                                as.vector(bp_star[1:(P-1)]), 
+        #                                as.matrix(Sigma_star[1:(P-1),1:(P-1)]), log = T)   
+      }
       
-      bp_proposed_pm1 <- bp[x,1:(P-1)]
-      bp_proposed <- c(bp_proposed_pm1, - sum(bp_proposed_pm1))
-      
-      logProposal_current <- dmvnorm(as.vector(bp_proposed_pm1), 
-                                  as.vector(bp_star[1:(P-1)]), 
-                                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]), log = T)
+      # new
+      {
+        list_bp_proposal <- findProposalBpm1Additive(a2, b, d, E, k2)
+        bp_star <- list_bp_proposal$bp_star
+        Sigma_star <- list_bp_proposal$Sigma_star
+        
+        bp_proposed_pm1 <- bp[x,1:(P-1)]
+        bp_proposed <- c(bp_proposed_pm1, - sum(bp_proposed_pm1))
+        
+        logProposal_current <- dmvnorm(as.vector(bp_proposed_pm1), 
+                                       as.vector(bp_star), 
+                                       as.matrix(Sigma_star), log = T)
+      }
+     
       
       logprior_param_current <- sum(dnorm(as.vector(bp_proposed), 0, sd_bp, log = T))
       
@@ -1305,15 +1715,32 @@ for (iter in 1:(niter + nburn)) {
       
       for (x in 1:X) {
       
-        list_bp_proposal <- findProposalBpXNonparametrics(x, a2, b, bp, d, 
-                                                          E, k2, sd_bp)
-        bp_star <- list_bp_proposal$bp_star
-        Sigma_star <- list_bp_proposal$Sigma_star
+        # old
+        {
+          # list_bp_proposal <- findProposalBpXNonparametrics(x, a2, b, bp, d, 
+          #                                                   E, k2, sd_bp)
+          # bp_star <- list_bp_proposal$bp_star
+          # Sigma_star <- list_bp_proposal$Sigma_star
+          # 
+          # logProposal_current <- logProposal_current + 
+          #   dmvnorm(as.vector(bp[x,1:(P-1)]), 
+          #           as.vector(bp_star[1:(P-1)]), 
+          #           as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4, log = T)
+        }
         
-        logProposal_current <- logProposal_current + 
-          dmvnorm(as.vector(bp[x,1:(P-1)]), 
-                  as.vector(bp_star[1:(P-1)]), 
-                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4, log = T)
+        # new
+        {
+          list_bp_proposal <- findProposalBpXM1Nonparametrics(x, a2, b, bp, d, 
+                                                            E, k2, sd_bp)
+          bp_star <- list_bp_proposal$bp_star
+          Sigma_star <- list_bp_proposal$Sigma_star
+          
+          logProposal_current <- logProposal_current + 
+            dmvnorm(as.vector(bp[x,1:(P-1)]), 
+                    as.vector(bp_star), 
+                    as.matrix(Sigma_star) , log = T)
+        }
+        
         
         logprior_param_current <- logprior_param_current + 
           sum(dnorm(as.vector(bp[x,]), 0, sd_bp, log = T))
@@ -1335,21 +1762,44 @@ for (iter in 1:(niter + nburn)) {
       
     } else if (newConfig == "A"){ # proposing additive model
       
-      list_bp_proposal <- findProposalBpAdditive(a2, b, d, E, k2)
-      bp_star <- list_bp_proposal$bp_star
-      Sigma_star <- list_bp_proposal$Sigma_star
+      # old
+      {
+        # list_bp_proposal <- findProposalBpAdditive(a2, b, d, E, k2)
+        # bp_star <- list_bp_proposal$bp_star
+        # Sigma_star <- list_bp_proposal$Sigma_star
+        # 
+        # bp_proposed_pm1 <- mvrnorm(
+        #   n = 1,
+        #   bp_star[1:(P-1)],
+        #   as.matrix(Sigma_star[1:(P-1),1:(P-1)])
+        # )
+        # 
+        # bp_proposed <- c(bp_proposed_pm1, - sum(bp_proposed_pm1))
+        # 
+        # logProposal_star <- dmvnorm(as.vector(bp_proposed_pm1), 
+        #                             as.vector(bp_star[1:(P-1)]), 
+        #                             as.matrix(Sigma_star[1:(P-1),1:(P-1)]), log = T)
+      }
       
-      bp_proposed_pm1 <- mvrnorm(
-        n = 1,
-        bp_star[1:(P-1)],
-        as.matrix(Sigma_star[1:(P-1),1:(P-1)])
-      )
+      # new
+      {
+        list_bp_proposal <- findProposalBpm1Additive(a2, b, d, E, k2)
+        bp_star <- list_bp_proposal$bp_star
+        Sigma_star <- list_bp_proposal$Sigma_star
+        
+        bp_proposed_pm1 <- mvrnorm(
+          n = 1,
+          bp_star,
+          as.matrix(Sigma_star)
+        )
+        
+        bp_proposed <- c(bp_proposed_pm1, - sum(bp_proposed_pm1))
+        
+        logProposal_star <- dmvnorm(as.vector(bp_proposed_pm1), 
+                                    as.vector(bp_star), 
+                                    as.matrix(Sigma_star), log = T)
+      }
       
-      bp_proposed <- c(bp_proposed_pm1, - sum(bp_proposed_pm1))
-      
-      logProposal_star <- dmvnorm(as.vector(bp_proposed_pm1), 
-                                  as.vector(bp_star[1:(P-1)]), 
-                                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]), log = T)
       
       logprior_param_star <- sum(dnorm(as.vector(bp_proposed), 0, sd_bp, log = T))
       
@@ -1365,29 +1815,56 @@ for (iter in 1:(niter + nburn)) {
       
       for (x in 1:X) {
         
-        list_bp_proposal <- findProposalBpXNonparametrics(x, a2, b, bp, d, E, k2, sd_bp)
-        bp_star <- list_bp_proposal$bp_star
-        Sigma_star <- list_bp_proposal$Sigma_star
+        # old
+        {
+          # list_bp_proposal <- findProposalBpX(x, a2, b, bp, d, E, k2, sd_bp)
+          # bp_star <- list_bp_proposal$bp_star
+          # Sigma_star <- list_bp_proposal$Sigma_star
+          # 
+          # bpx_proposed_pm1 <- mvrnorm(
+          #   n = 1,
+          #   bp_star[1:(P-1)],
+          #   as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4
+          # )
+          # 
+          # bp_proposed[x,] <- c(bpx_proposed_pm1, - sum(bpx_proposed_pm1)) 
+          # 
+          # # loglik_ap_current <- loglik_ap_r(a, b2, d, E, k2)
+          # 
+          # logProposal_star <- logProposal_star + 
+          #   dmvnorm(as.vector(bpx_proposed_pm1), 
+          #           as.vector(bp_star[1:(P-1)]), 
+          #           as.matrix(Sigma_star[1:(P-1),1:(P-1)]), 
+          #           log = T)
+        }
         
-        bpx_proposed_pm1 <- mvrnorm(
-          n = 1,
-          bp_star[1:(P-1)],
-          as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4
-        )
+        # new
+        {
+          list_bp_proposal <- findProposalBpXM1Nonparametrics(x, a2, b, bp, d, E, k2, sd_bp)
+          bp_star <- list_bp_proposal$bp_star
+          Sigma_star <- list_bp_proposal$Sigma_star
+          
+          bpx_proposed_pm1 <- mvrnorm(
+            n = 1,
+            bp_star,
+            as.matrix(Sigma_star) 
+          )
+          
+          bp_proposed[x,] <- c(bpx_proposed_pm1, - sum(bpx_proposed_pm1)) 
+          
+          # loglik_ap_current <- loglik_ap_r(a, b2, d, E, k2)
+          
+          logProposal_star <- logProposal_star + 
+            dmvnorm(as.vector(bpx_proposed_pm1), 
+                    as.vector(bp_star), 
+                    as.matrix(Sigma_star), 
+                    log = T)
+        }
         
-        bp_proposed[x,] <- c(bpx_proposed_pm1, - sum(bpx_proposed_pm1)) 
-        
-        # loglik_ap_current <- loglik_ap_r(a, b2, d, E, k2)
         
         logprior_param_star <- 
           logprior_param_star + 
           sum(dnorm(as.vector(bp_proposed[x,]), 0, sd_bp, log = T))
-        
-        logProposal_star <- logProposal_star + 
-          dmvnorm(as.vector(bpx_proposed_pm1), 
-                  as.vector(bp_star[1:(P-1)]), 
-                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]), 
-                  log = T)
       
       }
       
@@ -1547,7 +2024,7 @@ for (iter in 1:(niter + nburn)) {
   }
   
   # propose gamma_k
-  
+  # print("Updategammak")
   if (update_gammak) {
     
     a2 <- matrix(a, X, P, byrow = F) + ap
@@ -1586,16 +2063,20 @@ for (iter in 1:(niter + nburn)) {
       # Sigma_star <- 2 * solve(H_star)
       }
       
-      list_kp_proposal <- findProposalKpAdditive(a2, b2, d, E, k)
+      # list_kp_proposal <- findProposalKpAdditive(a2, b2, d, E, k)
+      # kp_star <- list_kp_proposal$kp_star[1:(P-1)]
+      # Sigma_star <- list_kp_proposal$Sigma_star
+      # Sigma_star <- as.matrix(Sigma_star[1:(P-1),1:(P-1)])
+      # kp_proposed_pm1 <- kp[t,1:(P-1)]
+      # kp_proposed <- c(kp_proposed_pm1, - sum(kp_proposed_pm1))
+      
+      list_kp_proposal <- findProposalKpAdditive_m1(a2, b2, d, E, k)
       kp_star <- list_kp_proposal$kp_star
       Sigma_star <- list_kp_proposal$Sigma_star
       
-      kp_proposed_pm1 <- kp[t,1:(P-1)]
-      kp_proposed <- c(kp_proposed_pm1, - sum(kp_proposed_pm1))
-      
-      logProposal_current <- dmvnorm(as.vector(kp_proposed_pm1), 
-                                  as.vector(kp_star[1:(P-1)]), 
-                                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]), log = T)
+      logProposal_current <- dmvnorm(as.vector(kp[1,1:(P-1)]), 
+                                  as.vector(kp_star), 
+                                  Sigma_star, log = T)
       
       logprior_param_current <- sum(dnorm(as.vector(kp_proposed), 0, sd_ap, log = T))
       
@@ -1627,15 +2108,25 @@ for (iter in 1:(niter + nburn)) {
           # Sigma_star <- 2 * solve(H_star)
         }
       
-        list_kp_proposal <- findProposalKptNonparametrics(t, a2, b2, d, 
-                                                          E, k, kp, sd_kp)
-        kp_star <- list_kp_proposal$kp_star
-        Sigma_star <- list_ap_proposal$Sigma_star
+        # list_kp_proposal <- findProposalKptNonparametrics(t, a2, b2, d, 
+        #                                                   E, k, kp, sd_kp)
+        # kp_star <- list_kp_proposal$kp_star
+        # Sigma_star <- list_ap_proposal$Sigma_star
+        # Sigma_star <- as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4
+        # logProposal_current <- logProposal_current + 
+        #   dmvnorm(as.vector(kp[t,1:(P-1)]), 
+        #           as.vector(kp_star[1:(P-1)]), 
+        #           Sigma_star, log = T)
+        
+        list_kp_proposal <- findProposalKptNonparametrics_m1(t, a2, b2, d, 
+                                                             E, k, kp, sd_kp)
+        kp_star <- list_kp_proposal$kp_star  
+        Sigma_star <- list_kp_proposal$Sigma_star
         
         logProposal_current <- logProposal_current + 
           dmvnorm(as.vector(kp[t,1:(P-1)]), 
-                  as.vector(kp_star[1:(P-1)]), 
-                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4, log = T)
+                  as.vector(kp_star), 
+                  Sigma_star, log = T)
         
         logprior_param_current <- logprior_param_current + 
           sum(dnorm(as.vector(kp[t,]), 0, sd_kp, log = T))
@@ -1657,22 +2148,45 @@ for (iter in 1:(niter + nburn)) {
       
     } else if (newConfig == "A"){ # proposing additive model
       
-      list_kp_proposal <- findProposalKpAdditive(a2, b2, d, E, k)
-      kp_star <- list_kp_proposal$kp_star
-      Sigma_star <- list_kp_proposal$Sigma_star
+      # old
+      {
+        # list_kp_proposal <- findProposalKpAdditive(a2, b2, d, E, k)
+        # kp_star <- list_kp_proposal$kp_star
+        # Sigma_star <- list_kp_proposal$Sigma_star
+        # 
+        # kp_proposed_pm1 <- mvrnorm(
+        #   n = 1,
+        #   kp_star[1:(P-1)],
+        #   as.matrix(Sigma_star[1:(P-1),1:(P-1)])
+        # )
+        # 
+        # kp_proposed <- c(kp_proposed_pm1, - sum(kp_proposed_pm1))
+        # 
+        # logProposal_star <- dmvnorm(as.vector(kp_proposed_pm1),
+        #                             as.vector(kp_star[1:(P-1)]),
+        #                             as.matrix(Sigma_star[1:(P-1),1:(P-1)]),
+        #                             log = T)
+      }
       
-      kp_proposed_pm1 <- mvrnorm(
-        n = 1,
-        kp_star[1:(P-1)],
-        as.matrix(Sigma_star[1:(P-1),1:(P-1)])
-      )
-      
-      kp_proposed <- c(kp_proposed_pm1, - sum(kp_proposed_pm1))
-      
-      logProposal_star <- dmvnorm(as.vector(kp_proposed_pm1), 
-                                  as.vector(kp_star[1:(P-1)]), 
-                                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]), 
-                                  log = T)
+      # new
+      {
+        list_kp_proposal <- findProposalKpAdditive_m1(a2, b2, d, E, k)
+        kp_star <- list_kp_proposal$kp_star
+        Sigma_star <- list_kp_proposal$Sigma_star
+        
+        kp_proposed_pm1 <- mvrnorm(
+          n = 1,
+          kp_star,
+          as.matrix(Sigma_star)
+        )
+        
+        kp_proposed <- c(kp_proposed_pm1, - sum(kp_proposed_pm1))
+        
+        logProposal_star <- dmvnorm(as.vector(kp_proposed_pm1),
+                                    as.vector(kp_star),
+                                    as.matrix(Sigma_star),
+                                    log = T)
+      }
       
       logprior_param_star <- sum(dnorm(as.vector(kp_proposed), 0, 
                                        sd_kp, log = T))
@@ -1690,32 +2204,26 @@ for (iter in 1:(niter + nburn)) {
       
       for (t in 1:Y) {
         
-        list_kp_proposal <- findProposalKptNonparametrics(t, a2, b2, d, 
+        # list_kp_proposal <- findProposalKptNonparametrics(t, a2, b2, d, 
+        #                                                   E, k, kp, sd_kp)
+        # kp_star <- list_kp_proposal$kp_star
+        # Sigma_star <- list_kp_proposal$Sigma_star
+        # kpt_m1 <- (kp_star - mean(kp_star))[1:(P-1)]
+        # Sigma_star <- as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4
+        list_kp_proposal <- findProposalKptNonparametrics_m1(t, a2, b2, d, 
                                                           E, k, kp, sd_kp)
-        kp_star <- list_kp_proposal$kp_star
+        kpt_m1 <- list_kp_proposal$kp_star  
         Sigma_star <- list_kp_proposal$Sigma_star
         
-        kpt_m1 <- (kp_star - mean(kp_star))[1:(P-1)]
-          
         kpt_proposed_pm1 <- mvrnorm(
           n = 1,
           # kp_star[1:(P-1)],
           kpt_m1,
-          as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4
+          Sigma_star
+          # as.matrix(Sigma_star[1:(P-1),1:(P-1)]) / 4
         )
         
-        # kp_proposed[t,] <-
-        #   sampleMVNconstraint_k(kp_star,
-        #                         as.matrix(Sigma_star))
-        
-        
         kp_proposed[t,] <- c(kpt_proposed_pm1, - sum(kpt_proposed_pm1))
-        
-        # loglik_kpt_current <- loglik_kpt_r(t, a2, b2, k, kp, d, E)
-        # 
-        # (- loglik_kpt_current(kp_proposed[t,])) -
-        # (- loglik_kpt_current(k[t]))
-        # loglik_ap_current <- loglik_kp_r(a2, b2, d, E, k)
         
         logprior_param_star <- logprior_param_star + 
           sum(dnorm(as.vector(kp_proposed[t,]), 0, 
@@ -1723,9 +2231,14 @@ for (iter in 1:(niter + nburn)) {
         
         logProposal_star <- logProposal_star + 
           dmvnorm(as.vector(kpt_proposed_pm1), 
-                  as.vector(kp_star[1:(P-1)]), 
-                  as.matrix(Sigma_star[1:(P-1),1:(P-1)]), 
+                  as.vector(kpt_m1), 
+                  as.matrix(Sigma_star), 
                   log = T)
+        # logProposal_star <- logProposal_star + 
+        #   dmvnorm(as.vector(kpt_proposed_pm1), 
+        #           as.vector(kp_star[1:(P-1)]), 
+        #           as.matrix(Sigma_star[1:(P-1),1:(P-1)]), 
+        #           log = T)
       
         # kp_star_all[t,] <- kp_star
       }
@@ -1759,130 +2272,6 @@ for (iter in 1:(niter + nburn)) {
       kp <- kp_proposed
     }
     
-  }
-  
-  # old code
-  {
-    # if (update_gammak) {
-    #   
-    #   a2 <- matrix(a, X, P, byrow = F) + ap
-    #   b2 <- matrix(b, X, P, byrow = F) + bp
-    #   
-    #   kp_star_all <- matrix(NA, Y, P)
-    #   Sigma_star_all <- array(NA, dim = c(Y, P, P))
-    #   
-    #   for (t in 1:Y) {
-    #     
-    #     loglik_kpt_current <- loglik_kpt_r(t, a2, b2, k, kp, d, E)
-    #     gr_loglik_kpt_current <- gr_loglik_kpt_r(t, a2, b2, k, kp, d, E)
-    #     
-    #     # find maximum
-    #     laplace_fit <- optim(
-    #       # par = kp[t,],
-    #       par = rep(0, P),
-    #       fn = loglik_kpt_current,
-    #       gr = gr_loglik_kpt_current,
-    #       method = c("BFGS"),
-    #       hessian = T
-    #     )
-    #  
-    #     kp_star_all[t,] <- laplace_fit$par
-    #     Sigma_star_all[t,,] <- solve(laplace_fit$hessian)
-    #     
-    #   }
-    #   
-    #   if(gamma_k == "NP"){ # currently in nonparametric model
-    #     
-    #     kp_proposed <- kp
-    #     
-    #     loglik_proposal <- 0
-    #     loglik_current <- 0
-    #     logproposal <- 0
-    #     
-    #     # propose new kp
-    #     for (t in 1:Y) {
-    #       
-    #       loglik_kpt_current <- loglik_kpt_r(t, a2, b2, k, kp, d, E)
-    #       
-    #       loglik_proposal <- loglik_proposal - loglik_kpt_current(kp_proposed[t,])
-    #       loglik_current <- loglik_current - loglik_kpt_current(rep(0, P))
-    #       
-    #       logproposal <- logproposal + 
-    #         
-    #         dmvnorm(as.vector(kp_proposed[t,1:(P-1)]), 
-    #                 as.vector(kp_star_all[t,1:(P-1)]), 
-    #                 as.matrix(Sigma_star_all[t,1:(P-1),1:(P-1)]), log = T)
-    #       
-    #     }
-    #     
-    #     logprior_proposal <- log(p_kp)
-    #     logprior_current <- log(1 - p_kp)
-    #     
-    #     mh_ratio <- 1 / exp(loglik_proposal - loglik_current + 
-    #                       logprior_proposal - logprior_current - 
-    #                       logproposal)
-    #     
-    #     if(runif(1) < mh_ratio){
-    #       
-    #       gamma_k <- "B"
-    #       kp <- matrix(0, Y, P)
-    #       
-    #     }
-    #     
-    #   } else { # currently in base model
-    #     
-    #     kp_proposed <- matrix(NA, Y, P)
-    #     
-    #     loglik_proposal <- 0
-    #     loglik_current <- 0
-    #     logproposal <- 0
-    #     
-    #     # propose new bp
-    #     for (t in 1:Y) {
-    #     
-    #       kpt_proposed_pm1 <- mvrnorm(
-    #         n = 1,
-    #         kp_star_all[t,1:(P-1)],
-    #         as.matrix(Sigma_star_all[t,1:(P-1),1:(P-1)])
-    #       )
-    #       
-    #       kp_proposed[t,] <- c(kpt_proposed_pm1, - sum(kpt_proposed_pm1)) 
-    #       
-    #     }
-    #     
-    #     # compute kp lik
-    #     for (t in 1:Y) {
-    #       
-    #       loglik_kpt_current <- loglik_kpt_r(t, a2, b2, k, kp, d, E)
-    #       
-    #       loglik_proposal <- loglik_proposal - loglik_kpt_current(kp_proposed[t,])
-    #       loglik_current <- loglik_current - loglik_kpt_current(rep(0, P))
-    #       
-    #       logproposal <- logproposal + 
-    #         dmvnorm(as.vector(kp_proposed[t,1:(P-1)]), 
-    #                 as.vector(kp_star_all[t,1:(P-1)]), 
-    #                 as.matrix(Sigma_star_all[t,1:(P-1),1:(P-1)]), log = T)
-    #       
-    #     }
-    #     
-    #     logprior_proposal <- log(p_kp)
-    #     logprior_current <- log(1 - p_kp)
-    #     
-    #     mh_ratio <- exp(loglik_proposal - loglik_current + 
-    #                       logprior_proposal - logprior_current - 
-    #                       logproposal)
-    #     
-    #     if(runif(1) < mh_ratio){
-    #       
-    #       gamma_k <- "NP"
-    #       kp <- kp_proposed
-    #       
-    #     }
-    #      
-    #     
-    #   } 
-    #   
-    # }  
   }
   
   # output
@@ -2008,33 +2397,6 @@ qplot(1:niter, loglik_output[1:niter]) +
     geom_point(color = "red")
 }
 
-# bp
-{
-  bbp_output <- bp_output + array(b_output, dim = c(niter, X, P))
-  bbp_CI <- apply(bbp_output, c(2,3), function(x){
-    quantile(x, probs = c(0.025, 0.975))
-  })
-  
-  bbp_CI <- t(apply(bp_CI, 1, as.vector))
-  
-  data_plot <- data.frame(Age = rep(1:X, each = P),
-                          Product = factor(rep(1:P, X)),
-                          True = matrix(b_true, X, P, byrow = T) + bp_true,
-                          bbp_CI[1,],
-                          bbp_CI[2,])
-  
-  colnames(data_plot)[3:5] <- c("True","CI1","CI2")
-  
-  ggplot(data = data_plot, aes(x = Age,
-                          color = Product,
-                          group = Product,
-                          y = True,
-                          ymin = CI1,
-                          ymax = CI2)) + #geom_errorbar() + 
-    geom_line() + 
-    geom_point(color = "red")
-}
-
 # k
 {
   k_CI <- apply(k_output, 2, function(x){
@@ -2057,10 +2419,10 @@ qplot(1:niter, loglik_output[1:niter]) +
   kp_CI <- t(apply(kp_CI, 1, as.vector))
   
   ggplot(data = NULL, aes(x = 1:(Y * P),
-                          # y = as.vector(kp_true),
+                          y = as.vector(kp_true),
                           ymin = kp_CI[1,],
                           ymax = kp_CI[2,])) + 
-    # geom_point(color = "red") +
+    geom_point(color = "red") +
     geom_errorbar() 
 }
 
@@ -2083,6 +2445,8 @@ qplot(1:niter, loglik_output[1:niter]) +
     quantile(m_current_output, probs = c(0.025, 0.975))
     
   })
+  
+  realData <- F
   
   if(!realData){
     m_true <- apply(data_plot, 1, function(x){
@@ -2110,7 +2474,8 @@ qplot(1:niter, loglik_output[1:niter]) +
            Product = Var3) %>% 
     mutate(Product = factor(Product)) 
   
-  levels(data_plot$Product) <- dimnames(d)[[3]]
+  # levels(data_plot$Product) <- dimnames(d)[[3]]
+  levels(data_plot$Product) <- 1:P
   
   data_plot$crudeRate <- as.vector(sapply(1:nrow(data_plot), function(i){
     idx_age <- which(1:X == data_plot$Age[i])
@@ -2129,7 +2494,7 @@ qplot(1:niter, loglik_output[1:niter]) +
   labeller_years <- as.character(years)
   names(labeller_years) <- 1:Y
   
-  years_subset <- 1:9
+  years_subset <- 1:15
   
   data_plot %>% 
     filter(Year %in% years_subset) %>% 
@@ -2161,13 +2526,14 @@ qplot(1:niter, loglik_output[1:niter]) +
   
   data_plot %>% 
     ggplot(aes(x = Year,
-               # y = True,
+               y = True,
                ymin = CI_min,
                ymax = CI_max,
                color = Product,
                group = Product,
                fill = Product)) + 
     # geom_line(size = 1) +
+    geom_point(size = 1) +
     geom_ribbon(alpha = .3) + theme_bw() + 
     theme(axis.text = element_text(size = 8),
           axis.title = element_text(size = 14)) + 
@@ -2202,7 +2568,9 @@ qplot(1:niter, loglik_output[1:niter]) +
 
 # DIAGNOSTICS ------
 
-
-qplot(1:niter, a_output[,1])
-qplot(1:niter, b_output[,2])
-qplot(1:niter, k_output[,2])
+qplot(1:niter, a_output[,2]) + geom_hline(aes(yintercept = a_true[2]))
+qplot(1:niter, ap_output[,4,2]) + geom_hline(aes(yintercept = ap_true[4,2]))
+qplot(1:niter, b_output[,1]) + geom_hline(aes(yintercept = b_true[1]))
+qplot(1:niter, bp_output[,2,1]) + geom_hline(aes(yintercept = bp_true[2,1]))
+qplot(1:niter, k_output[,2]) + geom_hline(aes(yintercept = k_true[2]))
+qplot(1:niter, kp_output[,1,1]) + geom_hline(aes(yintercept = kp_true[1,1]))

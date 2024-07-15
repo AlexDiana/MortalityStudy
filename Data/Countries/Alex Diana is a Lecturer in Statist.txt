@@ -1,0 +1,7 @@
+Alex Diana is a Lecturer in Statistics in the Department of Maths, Stats and Actuarial Science at the University of Essex. Prior to that, he was a 
+research associate in the company Naturemetrics and a postdoctoral research associate at the University of Kent. He holds a PhD in Statistics at the 
+University of Kent and prior to that he was a Quantitative ANalyst at the company Ladbrokes. Throughout his academic career, Alex has worked on developing 
+statistical model using Bayesian inference, mainly in the field of ecology and recently in mortality modelling. He has published 4 papers in statistical 
+journal such as Annals of Applied Statistics, Biometrics and Environmetrics and other papers in applied journals. He is also author of the report
+"Machine-Learning Methods for Insurance Applications-A Survey", commissioned by the SoA. In the last year Alex has taken an interest in mortality modelling and 
+is trying to apply his background on Bayesian inference to the development of new inferential techniques for mortality demolling. 

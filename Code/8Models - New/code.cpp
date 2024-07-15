@@ -3,6 +3,142 @@
 #include <RcppArmadillo.h>
 using namespace Rcpp;
 
+
+arma::vec mvrnormArma(arma::vec mu, arma::mat Sigma) {
+  int ncols = Sigma.n_cols;
+  arma::mat Y = arma::randn(1, ncols);
+  return mu + arma::trans(Y * arma::chol(Sigma));
+}
+
+// [[Rcpp::export]]
+arma::vec mrt2(arma::vec mean, arma::mat Sigma, 
+               double df){
+  arma::vec zeroVec = arma::zeros(mean.size());
+  arma::vec y = mvrnormArma(zeroVec, Sigma);
+  double u = R::rchisq(df);
+  arma::vec x = sqrt(df / u) * y + mean;
+  return x;
+}
+
+// [[Rcpp::export]]
+double dmt_cpp(arma::vec x, double nu, arma::vec mu, arma::mat Sigma, 
+               bool returnLog){
+  int p = x.size();
+  
+  double logratio = R::lgammafn(( nu + p ) / 2) - R::lgammafn( nu / 2 );
+  
+  arma::vec product = (arma::trans(x - mu) * arma::inv(Sigma) * (x - mu));
+  double lognum = (- ( nu + p ) / 2) * log(1 + (1 / nu) * product[0]);
+  double logdetSigma = arma::log_det(Sigma).real();
+  
+  double logden = (p / 2.0) * log(M_PI * nu) + (0.5) * logdetSigma;
+  // double logden = (p / 2.0) * log(M_PI * nu) + (0.5) * log(arma::det(Sigma));
+  
+  double loglikelihood = logratio + lognum - logden;
+  
+  if(returnLog){
+    return loglikelihood;
+  } else {
+    return exp(loglikelihood);
+  }
+}
+
+// [[Rcpp::export]]
+arma::mat createTerm4_cpp(arma::vec gtx, int X, int Y){
+  
+  arma::mat term4 = arma::zeros(X, Y);
+  
+  for(int x = 0; x < X; x++){
+    for(int y = 0; y < Y; y++){
+      term4(x,y) = gtx[(y - x) - ( - (X-1))];
+    }  
+  }
+  
+  return(term4);
+  
+}
+
+// [[Rcpp::export]]
+arma::vec gr_loglik_term4_gtx_m1_fun_cpp(arma::vec param, 
+                                         arma::mat d, 
+                                         arma::mat E, 
+                                         arma::mat cxt,
+                                         arma::vec ik_m1){
+    
+    int X = d.n_rows;
+    int Y = d.n_cols;
+    
+    arma::vec gtx = param;
+    gtx.resize(param.n_elem + 1); 
+    gtx(param.n_elem) = 0;
+  
+    arma::mat gtx_mat = createTerm4_cpp(gtx, X, Y);
+    
+    double sumParams = accu(gtx_mat);
+    gtx_mat(0,Y-1) = -sumParams;
+    
+    arma::vec term1 = arma::zeros(X+Y-2);
+    arma::vec term2 = arma::zeros(X+Y-2);
+    for(int g = 0; g < (X+Y-2); g++){
+      term1[g] += sum(diagvec(d, g - X + 1));
+      term2[g] -= sum(diagvec(exp(cxt + gtx_mat + log(E)), g - X + 1));
+    }
+
+    arma::vec term3 = d(0, Y-1) * (- ik_m1);
+    
+    arma::vec term4 = - exp(cxt(0, Y-1) + gtx_mat(0, Y-1) + 
+      log(E(0, Y-1))) * (-ik_m1);
+
+    return(- (term1 + term2 + term3 + term4));
+  
+}
+
+
+// [[Rcpp::export]]
+arma::mat hess_loglik_term4_gtx_m1_fun_cpp(arma::vec param, 
+                                         arma::mat d, 
+                                         arma::mat E, 
+                                         arma::mat cxt,
+                                         arma::vec ik_m1){
+    
+    int X = d.n_rows;
+    int Y = d.n_cols;
+    
+    arma::vec gtx = param;
+    gtx.resize(param.n_elem + 1); 
+    gtx(param.n_elem) = 0;
+  
+    arma::mat gtx_mat = createTerm4_cpp(gtx, X, Y);
+    
+    double sumParams = accu(gtx_mat);
+    gtx_mat(0,Y-1) = -sumParams;
+    
+    arma::mat hess = arma::zeros(X+Y-2, X+Y-2);
+    
+    for (int g1 = 0; g1 < (X+Y-2); g1++) {
+      
+    // term2
+      
+      hess(g1,g1) -= 
+        sum(diagvec(exp(cxt + gtx_mat + log(E)), g1 - X  + 1));
+        
+        for (int g2 = 0; g2 < (X+Y-2); g2++) {
+          
+    // term3
+          
+          hess(g1,g2) -=
+            ik_m1[g1] * ik_m1[g2] * exp(cxt(0, Y-1) + gtx_mat(0, Y-1) + 
+            log(E(0, Y-1)));
+            
+        }  
+    }
+    
+    return(- hess);
+  
+}
+
+
+
 // loglikelihood of 
 
 // [[Rcpp::export]]
